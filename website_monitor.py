@@ -2,6 +2,7 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 import os
+import time  # Import time for sleep delays
 
 # Configuration
 URL = "https://console.vst-one.com/Home/About"
@@ -13,6 +14,8 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # From GitHub Secrets
 # List of recipient emails
 TO_EMAILS = [
     "umer@technevity.net",
+    "hafiz@technevity.net",
+    "l2@technevity.net",
 ]
 
 def send_email(subject, body):
@@ -37,10 +40,7 @@ def check_website():
 
         if status == 200:
             print(f"✅ Site is up. Status: {status}")
-            send_email(
-                "Website Status: UP ✅",
-                f"The website {URL} is up and running with status code {status}."
-            )
+            # No email sent when status is 200 OK
         elif status == 403:
             print("⚠️ 403 Forbidden — Likely a whitelisting issue.")
             send_email(
@@ -69,5 +69,7 @@ Status Code: 403
             f"Failed to reach {URL}. Error: {e}"
         )
 
-# Run the check once
-check_website()
+# Keep running the check every 5 minutes
+while True:
+    check_website()
+    time.sleep(300)  # Wait 300 seconds (5 minutes) before checking again
