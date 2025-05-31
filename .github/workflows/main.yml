@@ -1,28 +1,27 @@
-# .github/workflows/website-check.yml
-
-name: Website Uptime Monitor
+name: Website Monitor
 
 on:
   schedule:
-    - cron: '*/10 * * * *'  # Every 10 minutes
-  workflow_dispatch:  # Allows manual run
+    - cron: '*/6 * * * *'   # Run every 6 minutes
+  workflow_dispatch:         # Manual trigger available
 
 jobs:
-  run-script:
+  monitor:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.x'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
 
-    - name: Install dependencies
-      run: |
-        pip install requests
+      - name: Install dependencies
+        run: pip install requests
 
-    - name: Run the script
-      run: python website_monitor.py
+      - name: Run website monitor script
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: python website_monitor.py
