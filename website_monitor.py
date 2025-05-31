@@ -41,6 +41,10 @@ def check_website():
 
     if status == 200:
         print(f"✅ Site is up. Status: {status}")
+        send_email(
+            "Website Status: UP ✅",
+            f"The website {URL} is UP with status code {status}."
+        )
         return
 
     # Site is down or error happened - recheck after delay
@@ -51,6 +55,10 @@ def check_website():
 
     if status == 200:
         print(f"✅ Site is back up on recheck. Status: {status}")
+        send_email(
+            "Website Status: UP (After Recheck) ✅",
+            f"The website {URL} is UP after recheck with status code {status}."
+        )
         return
 
     # Still down after recheck - send alert
