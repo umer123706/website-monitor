@@ -2,6 +2,7 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 import time
+print("Script started running...")
 
 # Configuration
 URL = "https://console.vst-one.com/Home/About"
