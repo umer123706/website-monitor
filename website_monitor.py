@@ -13,7 +13,6 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # From GitHub Secrets
 # List of recipient emails
 TO_EMAILS = [
     "umer@technevity.net",
-    "l2@technevity.net",
 ]
 
 def send_email(subject, body):
@@ -38,6 +37,10 @@ def check_website():
 
         if status == 200:
             print(f"✅ Site is up. Status: {status}")
+            send_email(
+                "Website Status: UP ✅",
+                f"The website {URL} is up and running with status code {status}."
+            )
         elif status == 403:
             print("⚠️ 403 Forbidden — Likely a whitelisting issue.")
             send_email(
