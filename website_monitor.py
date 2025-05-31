@@ -5,7 +5,8 @@ import time
 
 # Configuration
 URL = "https://console.vst-one.com/Home/About"
-CHECK_INTERVAL = 360  # Check every 6 minutes
+CHECK_INTERVAL = 360  # Check every 6 minutes normally
+RECHECK_DELAY = 10    # Seconds to wait before rechecking on failure
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = "umerlatif919@gmail.com"
@@ -27,19 +28,37 @@ def send_email(subject, body):
     except Exception as e:
         print("Error sending email:", e)
 
-def check_website():
+def check_website_once():
     try:
         response = requests.get(URL, timeout=10)
-        status = response.status_code
+        return response.status_code
+    except Exception as e:
+        print(f"Exception while checking website: {e}")
+        return None
 
-        if status == 200:
-            print(f"✅ Site is up. Status: {status}")
-            # No email when site is up
-        elif status == 403:
-            print("⚠️ 403 Forbidden — Likely a whitelisting issue.")
-            send_email(
-                "Website Access Denied (403) ❌",
-                f"""
+def check_website():
+    status = check_website_once()
+
+    if status == 200:
+        print(f"✅ Site is up. Status: {status}")
+        return
+
+    # Site is down or error happened - recheck after delay
+    print(f"⚠️ Site check failed with status: {status}. Rechecking after {RECHECK_DELAY} seconds...")
+    time.sleep(RECHECK_DELAY)
+
+    status = check_website_once()
+
+    if status == 200:
+        print(f"✅ Site is back up on recheck. Status: {status}")
+        return
+
+    # Still down after recheck - send alert
+    if status == 403:
+        print("⚠️ 403 Forbidden — Likely a whitelisting issue.")
+        send_email(
+            "Website Access Denied (403) ❌",
+            f"""
 The website returned a 403 Forbidden error.
 
 This usually means the current IP address is not whitelisted.
@@ -48,19 +67,19 @@ Please ignore this alert if you're aware that the server is IP-restricted.
 
 URL: {URL}
 Status Code: 403
-                """.strip()
-            )
-        else:
-            print(f"❌ Site returned status {status}. Sending alert.")
-            send_email(
-                f"Website Status: DOWN ❌ ({status})",
-                f"{URL} returned unexpected status code: {status}."
-            )
-    except Exception as e:
-        print("❌ Site is down. Sending alert.")
+            """.strip()
+        )
+    elif status is None:
+        print("❌ Site unreachable after recheck. Sending alert.")
         send_email(
             "Website Status: DOWN ❌",
-            f"Failed to reach {URL}. Error: {e}"
+            f"Failed to reach {URL} after recheck."
+        )
+    else:
+        print(f"❌ Site returned status {status} after recheck. Sending alert.")
+        send_email(
+            f"Website Status: DOWN ❌ ({status})",
+            f"{URL} returned status code {status} after recheck."
         )
 
 # Main loop
