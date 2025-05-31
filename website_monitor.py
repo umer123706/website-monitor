@@ -1,21 +1,18 @@
 import requests
 import smtplib
 from email.mime.text import MIMEText
-import time
-print("Script started running...")
+import os
 
 # Configuration
 URL = "https://console.vst-one.com/Home/About"
-CHECK_INTERVAL = 360  # Check every 6 minutes
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_ADDRESS = "umerlatif919@gmail.com"
-EMAIL_PASSWORD = "dstq gzha jsox avdy"
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # From GitHub Secrets
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # From GitHub Secrets
 
 # List of recipient emails
 TO_EMAILS = [
     "umer@technevity.net",
-    "hafiz@technevity.net",
     "l2@technevity.net",
 ]
 
@@ -23,13 +20,13 @@ def send_email(subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
-    msg["To"] = ", ".join(TO_EMAILS)  # For email header
+    msg["To"] = ", ".join(TO_EMAILS)
 
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)  # Send to all
+            server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
         print("Email alert sent.")
     except Exception as e:
         print("Error sending email:", e)
@@ -41,7 +38,6 @@ def check_website():
 
         if status == 200:
             print(f"✅ Site is up. Status: {status}")
-            # No email when site is up
         elif status == 403:
             print("⚠️ 403 Forbidden — Likely a whitelisting issue.")
             send_email(
@@ -70,7 +66,5 @@ Status Code: 403
             f"Failed to reach {URL}. Error: {e}"
         )
 
-# Main loop
-while True:
-    check_website()
-    time.sleep(CHECK_INTERVAL)
+# Run the check once
+check_website()
