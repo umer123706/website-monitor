@@ -2,7 +2,6 @@ import requests
 import smtplib
 from email.mime.text import MIMEText
 import os
-import time  # Import time for sleep delays
 
 # Configuration
 URL = "https://console.vst-one.com/Home/About"
@@ -69,7 +68,6 @@ Status Code: 403
             f"Failed to reach {URL}. Error: {e}"
         )
 
-# Keep running the check every 5 minutes
-while True:
-    check_website()
-    time.sleep(300)  # Wait 300 seconds (5 minutes) before checking again
+# Run the check once
+check_website()
+
