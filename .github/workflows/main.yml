@@ -2,7 +2,7 @@ name: Website-Monitor
 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # Run every 10 minutes
+    - cron: '*/2 * * * *'   # Run every 10 minutes
   workflow_dispatch:         # Manual trigger available
 
 jobs:
