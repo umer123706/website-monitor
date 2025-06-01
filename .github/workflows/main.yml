@@ -1,4 +1,4 @@
-name: Website Monitor
+name: website-monitor
 
 on:
   schedule:
