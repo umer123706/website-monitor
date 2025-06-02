@@ -4,7 +4,6 @@ from email.mime.text import MIMEText
 import os
 
 # Configuration
-URL = "https://console.vst-one.com/Home/About"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # From GitHub Secrets
@@ -15,6 +14,12 @@ TO_EMAILS = [
     "umer@technevity.net",
     "hafiz@technevity.net",
     "l2@technevity.net",
+]
+
+# List of URLs to monitor
+URLS_TO_MONITOR = [
+    "https://console.vst-one.com/Home/About",
+    "https://vstalert.com/Business/Index",
 ]
 
 def send_email(subject, body):
@@ -32,16 +37,15 @@ def send_email(subject, body):
     except Exception as e:
         print("Error sending email:", e)
 
-def check_website():
+def check_website(url):
     try:
-        response = requests.get(URL, timeout=10)
+        response = requests.get(url, timeout=10)
         status = response.status_code
 
         if status == 200:
-            print(f"✅ Site is up. Status: {status}")
-            # No email sent when status is 200 OK
+            print(f"✅ Site is up: {url} — Status: {status}")
         elif status == 403:
-            print("⚠️ 403 Forbidden — Likely a whitelisting issue.")
+            print(f"⚠️ 403 Forbidden for {url} — Possible IP restriction.")
             send_email(
                 "Website Access Denied (403) ❌",
                 f"""
@@ -51,23 +55,24 @@ This usually means the current IP address is not whitelisted.
 
 Please ignore this alert if you're aware that the server is IP-restricted.
 
-URL: {URL}
+URL: {url}
 Status Code: 403
                 """.strip()
             )
         else:
-            print(f"❌ Site returned status {status}. Sending alert.")
+            print(f"❌ {url} returned status {status}. Sending alert.")
             send_email(
                 f"Website Status: DOWN ❌ ({status})",
-                f"{URL} returned unexpected status code: {status}."
+                f"{url} returned unexpected status code: {status}."
             )
     except Exception as e:
-        print("❌ Site is down. Sending alert.")
+        print(f"❌ Could not reach {url}. Sending alert.")
         send_email(
             "Website Status: DOWN ❌",
-            f"Failed to reach {URL}. Error: {e}"
+            f"Failed to reach {url}. Error: {e}"
         )
 
-# Run the check once
-check_website()
+# Run checks for all URLs
+for url in URLS_TO_MONITOR:
+    check_website(url)
 
