@@ -31,15 +31,8 @@ HEADERS = {
     "User-Agent": "WebsiteMonitor/1.0 (+https://yourdomain.com)"
 }
 
-# Error keywords to check inside page content (case insensitive)
-ERROR_KEYWORDS = [
-    "error",
-    "exception",
-    "not found",
-    "service unavailable",
-    "unauthorized",
-    "fatal",
-]
+# Phrase to check for in page content on all URLs
+ERROR_PHRASE = "something went wrong! please try again"
 
 def send_email(subject, body):
     msg = MIMEText(body)
@@ -63,17 +56,18 @@ def check_website(url):
 
         if status == 200:
             content = response.text.lower()
-            if any(keyword in content for keyword in ERROR_KEYWORDS):
-                logging.warning(f"Error keyword detected in page content for {url}. Sending alert.")
+            if ERROR_PHRASE in content:
+                logging.warning(f"Error phrase detected on {url}. Sending alert.")
                 send_email(
                     "Website Content Error Detected ❌",
-                    f"Error keyword found in the content of {url}. Please investigate."
+                    f"The phrase '{ERROR_PHRASE}' was found on {url}. Please investigate."
                 )
             else:
                 logging.info(f"✅ Site is up and content looks good: {url} — Status: {status}")
+
         elif status == 403:
             logging.warning(f"⚠️ 403 Forbidden for {url} — Possible IP restriction. Email alert skipped.")
-            # Email alert skipped intentionally for 403
+
         else:
             logging.error(f"❌ {url} returned status {status}. Sending alert.")
             send_email(
@@ -93,4 +87,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
