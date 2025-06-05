@@ -1,9 +1,7 @@
-name: Website-Monitor
+name: Website Monitor
 
 on:
-  schedule:
-    - cron: '*/10 * * * *'   # Run every 10 minutes
-  workflow_dispatch:         # Manual trigger available
+  workflow_dispatch:
 
 jobs:
   monitor:
@@ -18,10 +16,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install requests
+        run: pip install -r requirements.txt
 
-      - name: Run website monitor script
-        env:
-          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-        run: python website_monitor.py
+      - name: Run monitoring script
+        run: python monitor.py
