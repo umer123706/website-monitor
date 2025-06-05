@@ -19,4 +19,8 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run monitoring script
-        run: python monitor.py
+        run: python website_monitor.py
+
+      env:
+        EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
