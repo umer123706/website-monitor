@@ -1,7 +1,9 @@
 name: Website Monitor
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"   # run every 10 minutes
+  workflow_dispatch:          # manual trigger
 
 jobs:
   monitor:
@@ -16,11 +18,11 @@ jobs:
           python-version: '3.x'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Run monitoring script
         run: python website_monitor.py
-
-      env:
-        EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
-        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
