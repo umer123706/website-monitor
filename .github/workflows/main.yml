@@ -1,9 +1,9 @@
 name: Website Monitor
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"  # every 10 minutes
   workflow_dispatch:
+  schedule:
+    - cron: '*/10 * * * *'  # Run every 10 minutes
 
 jobs:
   monitor:
@@ -17,8 +17,8 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install dependencies
-        run: pip install -r requirements.txt
+      - name: Install requests
+        run: pip install requests
 
       - name: Run monitoring script
         run: python website_monitor.py
