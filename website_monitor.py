@@ -17,8 +17,7 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # From GitHub Secrets
 TO_EMAILS = [
     "umer@technevity.net",
     "hafiz@technevity.net",
-    "junaidsatti@technevity.net",
-    "rajakashif@technevity.net"
+    "l2@technevity.net",
 ]
 
 # List of URLs to monitor
@@ -27,13 +26,22 @@ URLS_TO_MONITOR = [
     "https://vstalert.com/Business/Index",
 ]
 
-# Headers for requests (avoid being blocked as bot)
+# Headers for requests
 HEADERS = {
     "User-Agent": "WebsiteMonitor/1.0 (+https://yourdomain.com)"
 }
 
-# Phrase to check for in page content on all URLs
-ERROR_PHRASE = "something went wrong! please try again"
+# Error keywords to check inside page content (case insensitive)
+ERROR_KEYWORDS = [
+    "error",
+    "exception",
+    "not found",
+    "service unavailable",
+    "unauthorized",
+    "fatal",
+    "something went wrong! please try again.",  # from image
+    "dismiss",                                 # from image
+]
 
 def send_email(subject, body):
     msg = MIMEText(body)
@@ -57,18 +65,23 @@ def check_website(url):
 
         if status == 200:
             content = response.text.lower()
-            if ERROR_PHRASE in content:
-                logging.warning(f"Error phrase detected on {url}. Sending alert.")
+            error_found = any(keyword in content for keyword in ERROR_KEYWORDS)
+
+            # Only apply image-text check to this specific URL
+            if url == "https://console.vst-one.com/Home/About":
+                if "something went wrong! please try again." in content or "dismiss" in content:
+                    error_found = True
+
+            if error_found:
+                logging.warning(f"Error-like content detected on {url}. Sending alert.")
                 send_email(
-                    "Website Content Error Detected ❌",
-                    f"The phrase '{ERROR_PHRASE}' was found on {url}. Please investigate."
+                    "Website Alert Detected ❌",
+                    f"A known error message or image pattern was found on {url}."
                 )
             else:
                 logging.info(f"✅ Site is up and content looks good: {url} — Status: {status}")
-
         elif status == 403:
             logging.warning(f"⚠️ 403 Forbidden for {url} — Possible IP restriction. Email alert skipped.")
-
         else:
             logging.error(f"❌ {url} returned status {status}. Sending alert.")
             send_email(
