@@ -32,10 +32,6 @@ HEADERS = {
 # Error keywords to check (ONLY for specific URL)
 ERROR_KEYWORDS = [
     "exception",
-    "not found",
-    "service unavailable",
-    "unauthorized",
-    "fatal",
     "something went wrong! please try again.",
 ]
 
