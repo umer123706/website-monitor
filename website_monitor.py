@@ -1,4 +1,3 @@
-
 import requests
 import smtplib
 from email.mime.text import MIMEText
@@ -38,8 +37,8 @@ ERROR_KEYWORDS = [
     "service unavailable",
     "unauthorized",
     "fatal",
-"something went wrong! please try again.",  
-    "dismiss",  
+    "something went wrong! please try again.",
+    "dismiss",
 ]
 
 def send_email(subject, body):
@@ -64,7 +63,9 @@ def check_website(url):
 
         if status == 200:
             content = response.text.lower()
-            if any(keyword in content for keyword in ERROR_KEYWORDS):
+            error_check_enabled = url == "https://console.vst-one.com/Home/About"
+
+            if error_check_enabled and any(keyword in content for keyword in ERROR_KEYWORDS):
                 logging.warning(f"Error keyword detected in page content for {url}. Sending alert.")
                 send_email(
                     "Website Content Error Detected ❌",
