@@ -37,7 +37,6 @@ ERROR_KEYWORDS = [
     "unauthorized",
     "fatal",
     "something went wrong! please try again.",
-    "dismiss",
 ]
 
 def send_email(subject, body):
