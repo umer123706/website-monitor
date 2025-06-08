@@ -31,7 +31,6 @@ HEADERS = {
 
 # Error keywords to check inside page content (case insensitive)
 ERROR_KEYWORDS = [
-    "error",
     "exception",
     "not found",
     "service unavailable",
