@@ -17,7 +17,6 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # From GitHub Secrets
 TO_EMAILS = [
     "umer@technevity.net",
     "hafiz@technevity.net",
-    "l2@technevity.net",
 ]
 
 # List of URLs to monitor
