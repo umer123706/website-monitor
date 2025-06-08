@@ -29,7 +29,7 @@ HEADERS = {
     "User-Agent": "WebsiteMonitor/1.0 (+https://yourdomain.com)"
 }
 
-# Error keywords to check inside page content (case insensitive)
+# Error keywords to check (ONLY for specific URL)
 ERROR_KEYWORDS = [
     "exception",
     "not found",
@@ -64,14 +64,19 @@ def check_website(url):
             content = response.text.lower()
             error_check_enabled = url == "https://console.vst-one.com/Home/About"
 
-            if error_check_enabled and any(keyword in content for keyword in ERROR_KEYWORDS):
-                logging.warning(f"Error keyword detected in page content for {url}. Sending alert.")
-                send_email(
-                    "Website Content Error Detected ❌",
-                    f"Error keyword found in the content of {url}. Please investigate."
-                )
+            if error_check_enabled:
+                for keyword in ERROR_KEYWORDS:
+                    if keyword in content:
+                        logging.warning(f"Keyword match: '{keyword}' found in {url}")
+                        send_email(
+                            "Website Content Error Detected ❌",
+                            f"The keyword '{keyword}' was found in the content of {url}. Please investigate."
+                        )
+                        break  # Stop checking after first match
+                else:
+                    logging.info(f"✅ Site is up and content looks good: {url} — Status: {status}")
             else:
-                logging.info(f"✅ Site is up and content looks good: {url} — Status: {status}")
+                logging.info(f"✅ Site is up (skipped keyword check): {url} — Status: {status}")
         elif status == 403:
             logging.warning(f"⚠️ 403 Forbidden for {url} — Possible IP restriction. Email alert skipped.")
         else:
