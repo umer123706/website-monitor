@@ -2,6 +2,8 @@ name: Website Monitor
 
 on:
   workflow_dispatch:
+# schedule:
+#   - cron: '*/10 * * * *'  # Run every 10 minutes (uncomment if needed)
 
 jobs:
   monitor:
@@ -15,27 +17,33 @@ jobs:
         with:
           python-version: '3.x'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: pip install requests selenium
 
       - name: Install ChromeDriver matching installed Chrome
         run: |
           CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-          echo "Detected Chrome version: $CHROME_VERSION"
+          CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d '.' -f 1)
+          echo "Installed Chrome version: $CHROME_VERSION"
+          echo "Detected major version: $CHROME_MAJOR"
 
-          wget "https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip" -O chromedriver.zip || {
-            echo "❌ ChromeDriver for version $CHROME_VERSION not found."
+          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR")
+          echo "Closest available ChromeDriver version: $CHROMEDRIVER_VERSION"
+
+          if [[ "$CHROMEDRIVER_VERSION" == *"Error"* || -z "$CHROMEDRIVER_VERSION" ]]; then
+            echo "❌ No matching ChromeDriver found for major version $CHROME_MAJOR"
             exit 1
-          }
+          fi
 
+          wget "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" -O chromedriver.zip
           unzip chromedriver.zip
           sudo mv chromedriver /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
 
       - name: Run monitoring script
+        run: python website_monitor.py
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           VST_USERNAME: ${{ secrets.VST_USERNAME }}
           VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
-        run: python website_monitor.py
