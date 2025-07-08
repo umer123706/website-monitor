@@ -18,8 +18,8 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(mes
 # Configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # Your email for alerts
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Your email password or app password
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 # List of recipient emails
 TO_EMAILS = [
@@ -28,7 +28,7 @@ TO_EMAILS = [
 
 # List of URLs to monitor
 URLS_TO_MONITOR = [
-    "https://console.vst-one.com/Home/About",  # protected page to check after login
+    "https://console.vst-one.com/Home/About",  # protected page
     "https://vstalert.com/Business/Index",
 ]
 
@@ -37,7 +37,7 @@ HEADERS = {
     "User-Agent": "WebsiteMonitor/1.0 (+https://yourdomain.com)"
 }
 
-# Error keywords to check (only for specific URL)
+# Keywords to detect issues
 ERROR_KEYWORDS = [
     "exception",
     "something went wrong! please try again.",
@@ -58,8 +58,8 @@ def send_email(subject, body):
         logging.error(f"Error sending email: {e}")
 
 def check_protected_website(url):
-    USERNAME = os.getenv("VST_USERNAME")  # Your login username from env
-    PASSWORD = os.getenv("VST_PASSWORD")  # Your login password from env
+    USERNAME = os.getenv("VST_USERNAME")
+    PASSWORD = os.getenv("VST_PASSWORD")
 
     if not USERNAME or not PASSWORD:
         logging.error("Missing VST_USERNAME or VST_PASSWORD environment variables")
@@ -77,29 +77,37 @@ def check_protected_website(url):
         logging.info("Opening login page...")
         driver.get("https://console.vst-one.com/Home")
 
-        # Wait for login fields and enter credentials
+        # Login
         wait.until(EC.presence_of_element_located((By.NAME, "Email"))).send_keys(USERNAME)
         driver.find_element(By.NAME, "Password").send_keys(PASSWORD)
         driver.find_element(By.XPATH, "//button[contains(text(),'Login')]").click()
 
-        # Wait until dropdown is clickable and ready
+        # Wait until dropdown appears and is clickable
+        wait.until(EC.presence_of_element_located((By.ID, "unitSelectDropdown")))
         wait.until(EC.element_to_be_clickable((By.ID, "unitSelectDropdown")))
 
-        select_element = driver.find_element(By.ID, "unitSelectDropdown")
-        select = Select(select_element)
+        # Attempt to select "ESC1" safely
+        for _ in range(10):
+            try:
+                select_element = driver.find_element(By.ID, "unitSelectDropdown")
+                select = Select(select_element)
+                options = [o.text.strip() for o in select.options]
+                if "ESC1" in options:
+                    select.select_by_visible_text("ESC1")
+                    break
+            except Exception as e:
+                logging.warning("Waiting for ESC1 to appear in dropdown...")
+                time.sleep(1)
+        else:
+            logging.error("ESC1 option not found in dropdown after 10s")
+            send_email("Website Monitor Dropdown Failure ❌", "ESC1 option not found in unitSelectDropdown")
+            return
 
-        # Wait for dropdown options to load (more than 1 option)
-        WebDriverWait(driver, 10).until(lambda d: len(select.options) > 1)
-
-        # Select unit "ESC1"
-        select.select_by_visible_text("ESC1")
-
-        # Wait a bit for page to load after selection
+        # Wait a bit for page to load
         time.sleep(3)
 
-        # Navigate to the protected page
+        # Access target page
         driver.get(url)
-
         page_source = driver.page_source.lower()
 
         for keyword in ERROR_KEYWORDS:
