@@ -123,7 +123,7 @@ def check_protected_website(url):
 
     except Exception as e:
         logging.error(f"Error during selenium check: {e}")
-        send_email("Website Monitor Selenium Error ❌", f"Error during selenium check: {e}")
+       ## send_email("Website Monitor Selenium Error ❌", f"Error during selenium check: {e}")
 
     finally:
         driver.quit()
