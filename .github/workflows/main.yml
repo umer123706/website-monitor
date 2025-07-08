@@ -2,8 +2,8 @@ name: Website Monitor
 
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: '*/10 * * * *'
+# schedule:
+#   - cron: '*/10 * * * *'  # Run every 10 minutes
 
 jobs:
   monitor:
@@ -18,22 +18,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install Python dependencies
-        run: pip install requests selenium
-
-      - name: Remove preinstalled Chrome
-        run: sudo apt purge -y google-chrome-stable || true
-
-      - name: Install Chrome 117
-        run: |
-          wget https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_117.0.5938.92-1_amd64.deb
-          sudo apt install -y ./google-chrome-stable_117.0.5938.92-1_amd64.deb
-
-      - name: Install ChromeDriver 117
-        run: |
-          wget https://chromedriver.storage.googleapis.com/117.0.5938.92/chromedriver_linux64.zip
-          unzip chromedriver_linux64.zip
-          sudo mv chromedriver /usr/local/bin/
-          sudo chmod +x /usr/local/bin/chromedriver
+        run: pip install requests selenium chromedriver-autoinstaller
 
       - name: Run monitoring script
         run: python website_monitor.py
@@ -42,3 +27,4 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           VST_USERNAME: ${{ secrets.VST_USERNAME }}
           VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
+
