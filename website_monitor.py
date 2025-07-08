@@ -82,12 +82,16 @@ def check_protected_website(url):
         driver.find_element(By.NAME, "Password").send_keys(PASSWORD)
         driver.find_element(By.XPATH, "//button[contains(text(),'Login')]").click()
 
-        # Wait for unit selection dropdown - replace 'unitSelectDropdown' with actual id/name/class
-        wait.until(EC.presence_of_element_located((By.ID, "unitSelectDropdown")))
+        # Wait until dropdown is clickable and ready
+        wait.until(EC.element_to_be_clickable((By.ID, "unitSelectDropdown")))
 
-        # Select unit "ESC1"
         select_element = driver.find_element(By.ID, "unitSelectDropdown")
         select = Select(select_element)
+
+        # Wait for dropdown options to load (more than 1 option)
+        WebDriverWait(driver, 10).until(lambda d: len(select.options) > 1)
+
+        # Select unit "ESC1"
         select.select_by_visible_text("ESC1")
 
         # Wait a bit for page to load after selection
