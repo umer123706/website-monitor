@@ -51,8 +51,12 @@ def send_email(subject, body):
 
 def check_protected_website(url):
     LOGIN_URL = "https://console.vst-one.com/Home"  # Login page URL
-    USERNAME = os.getenv("esc-con1")  # Your login username
-    PASSWORD = os.getenv("Vst@12345")  # Your login password
+    USERNAME = os.getenv("VST_USERNAME")  # Your login username from env
+    PASSWORD = os.getenv("VST_PASSWORD")  # Your login password from env
+
+    if not USERNAME or not PASSWORD:
+        logging.error("Missing VST_USERNAME or VST_PASSWORD environment variables")
+        return
 
     with requests.Session() as session:
         # Step 1: GET login page to get cookies (may be needed)
