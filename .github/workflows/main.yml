@@ -2,8 +2,8 @@ name: Website Monitor
 
 on:
   workflow_dispatch:
-# schedule:
-#   - cron: '*/10 * * * *'  # Run every 10 minutes (uncomment if needed)
+  # schedule:
+  #   - cron: '*/10 * * * *'
 
 jobs:
   monitor:
@@ -20,23 +20,18 @@ jobs:
       - name: Install Python dependencies
         run: pip install requests selenium
 
-      - name: Install ChromeDriver matching installed Chrome
+      - name: Remove preinstalled Chrome
+        run: sudo apt purge -y google-chrome-stable || true
+
+      - name: Install Chrome 117
         run: |
-          CHROME_VERSION=$(google-chrome --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+')
-          CHROME_MAJOR=$(echo $CHROME_VERSION | cut -d '.' -f 1)
-          echo "Installed Chrome version: $CHROME_VERSION"
-          echo "Detected major version: $CHROME_MAJOR"
+          wget https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_117.0.5938.92-1_amd64.deb
+          sudo apt install -y ./google-chrome-stable_117.0.5938.92-1_amd64.deb
 
-          CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR")
-          echo "Closest available ChromeDriver version: $CHROMEDRIVER_VERSION"
-
-          if [[ "$CHROMEDRIVER_VERSION" == *"Error"* || -z "$CHROMEDRIVER_VERSION" ]]; then
-            echo "❌ No matching ChromeDriver found for major version $CHROME_MAJOR"
-            exit 1
-          fi
-
-          wget "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" -O chromedriver.zip
-          unzip chromedriver.zip
+      - name: Install ChromeDriver 117
+        run: |
+          wget https://chromedriver.storage.googleapis.com/117.0.5938.92/chromedriver_linux64.zip
+          unzip chromedriver_linux64.zip
           sudo mv chromedriver /usr/local/bin/
           sudo chmod +x /usr/local/bin/chromedriver
 
