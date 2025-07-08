@@ -1,29 +1,45 @@
-name: Website Monitor
+name: Website Monitoring
 
 on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes
   workflow_dispatch:
-# schedule:
-#   - cron: '*/10 * * * *'  # Run every 10 minutes (uncomment if needed)
 
 jobs:
   monitor:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      - name: Install requests
-        run: pip install requests
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install selenium
 
-      - name: Run monitoring script
-        run: python website_monitor.py
-        env:
-          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
-          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-          VST_USERNAME: ${{ secrets.VST_USERNAME }}
-          VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
+    - name: Install Google Chrome
+      run: |
+        wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+        sudo apt install -y ./google-chrome-stable_current_amd64.deb
+
+    - name: Install ChromeDriver
+      run: |
+        CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+')
+        wget -N https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip
+        unzip chromedriver_linux64.zip
+        sudo mv chromedriver /usr/local/bin/
+        sudo chmod +x /usr/local/bin/chromedriver
+
+    - name: Run monitoring script
+      env:
+        VST_USERNAME: ${{ secrets.VST_USERNAME }}
+        VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
+        EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+        EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      run: |
+        python your_monitor_script.py
