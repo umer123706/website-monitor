@@ -59,8 +59,11 @@ def check_protected_website(url):
         return
 
     with requests.Session() as session:
+        logging.info("Starting login process...")
+
         # Step 1: GET login page to get cookies (may be needed)
-        session.get(LOGIN_URL, headers=HEADERS)
+        login_page_response = session.get(LOGIN_URL, headers=HEADERS)
+        logging.info(f"Login page GET status: {login_page_response.status_code}")
 
         # Step 2: POST login data (adjust form field names if needed)
         login_data = {
@@ -69,17 +72,22 @@ def check_protected_website(url):
         }
 
         login_response = session.post(LOGIN_URL, data=login_data, headers=HEADERS)
+        logging.info(f"Login POST status: {login_response.status_code}")
 
-        if "invalid" in login_response.text.lower():
-            logging.error("Login failed: invalid credentials")
+        login_text = login_response.text.lower()
+
+        if "invalid" in login_text or "error" in login_text:
+            logging.error("Login failed: invalid credentials or error message detected")
             send_email("Login Failed ❌", f"Login failed for {USERNAME} at {LOGIN_URL}")
             return
 
+        logging.info("Login response does not indicate failure. Assuming login succeeded.")
+
         # Step 3: Access the protected page
         response = session.get(url, headers=HEADERS)
-        status = response.status_code
+        logging.info(f"Protected page GET status: {response.status_code}")
 
-        if status == 200:
+        if response.status_code == 200:
             content = response.text.lower()
             for keyword in ERROR_KEYWORDS:
                 if keyword in content:
@@ -90,12 +98,12 @@ def check_protected_website(url):
                     )
                     break
             else:
-                logging.info(f"✅ Site is up and content looks good: {url} — Status: {status}")
+                logging.info(f"✅ Site is up and content looks good: {url} — Status: {response.status_code}")
         else:
-            logging.error(f"{url} returned status {status}. Sending alert.")
+            logging.error(f"{url} returned status {response.status_code}. Sending alert.")
             send_email(
-                f"Website Status: DOWN ❌ ({status})",
-                f"{url} returned unexpected status code: {status}."
+                f"Website Status: DOWN ❌ ({response.status_code})",
+                f"{url} returned unexpected status code: {response.status_code}."
             )
 
 def check_website(url):
