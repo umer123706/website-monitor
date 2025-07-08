@@ -18,17 +18,8 @@ jobs:
       - name: Install dependencies
         run: pip install requests selenium
 
-      - name: Install Chrome v117 (stable)
-        run: |
-          wget https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_117.0.5938.92-1_amd64.deb
-          sudo apt install -y ./google-chrome-stable_117.0.5938.92-1_amd64.deb
-
-      - name: Install matching ChromeDriver v117
-        run: |
-          wget https://chromedriver.storage.googleapis.com/117.0.5938.92/chromedriver_linux64.zip
-          unzip chromedriver_linux64.zip
-          sudo mv chromedriver /usr/local/bin/
-          sudo chmod +x /usr/local/bin/chromedriver
+      - name: Install ChromeDriver that matches GitHub-hosted Chrome
+        uses: webdrivers/setup-chromedriver@v1
 
       - name: Run monitoring script
         env:
