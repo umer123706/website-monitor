@@ -3,6 +3,11 @@ import smtplib
 from email.mime.text import MIMEText
 import os
 import logging
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.support import expected_conditions as EC
+import time
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -50,7 +55,6 @@ def send_email(subject, body):
         logging.error(f"Error sending email: {e}")
 
 def check_protected_website(url):
-    LOGIN_URL = "https://console.vst-one.com/Home"  # Login page URL
     USERNAME = os.getenv("VST_USERNAME")  # Your login username from env
     PASSWORD = os.getenv("VST_PASSWORD")  # Your login password from env
 
@@ -58,53 +62,56 @@ def check_protected_website(url):
         logging.error("Missing VST_USERNAME or VST_PASSWORD environment variables")
         return
 
-    with requests.Session() as session:
-        logging.info("Starting login process...")
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
-        # Step 1: GET login page to get cookies (may be needed)
-        login_page_response = session.get(LOGIN_URL, headers=HEADERS)
-        logging.info(f"Login page GET status: {login_page_response.status_code}")
+    driver = webdriver.Chrome(options=options)
+    wait = WebDriverWait(driver, 15)
 
-        # Step 2: POST login data (adjust form field names if needed)
-        login_data = {
-            "Email": USERNAME,
-            "Password": PASSWORD,
-        }
+    try:
+        logging.info("Opening login page...")
+        driver.get("https://console.vst-one.com/Home")
 
-        login_response = session.post(LOGIN_URL, data=login_data, headers=HEADERS)
-        logging.info(f"Login POST status: {login_response.status_code}")
+        # Wait for login fields and enter credentials
+        wait.until(EC.presence_of_element_located((By.NAME, "Email"))).send_keys(USERNAME)
+        driver.find_element(By.NAME, "Password").send_keys(PASSWORD)
+        driver.find_element(By.XPATH, "//button[contains(text(),'Login')]").click()
 
-        login_text = login_response.text.lower()
+        # Wait for unit selection dropdown - replace 'unitSelectDropdown' with actual id/name/class
+        wait.until(EC.presence_of_element_located((By.ID, "unitSelectDropdown")))
 
-        if "invalid" in login_text or "error" in login_text:
-            logging.error("Login failed: invalid credentials or error message detected")
-            send_email("Login Failed ❌", f"Login failed for {USERNAME} at {LOGIN_URL}")
-            return
+        # Select unit "ESC1"
+        select_element = driver.find_element(By.ID, "unitSelectDropdown")
+        select = Select(select_element)
+        select.select_by_visible_text("ESC1")
 
-        logging.info("Login response does not indicate failure. Assuming login succeeded.")
+        # Wait a bit for page to load after selection
+        time.sleep(3)
 
-        # Step 3: Access the protected page
-        response = session.get(url, headers=HEADERS)
-        logging.info(f"Protected page GET status: {response.status_code}")
+        # Navigate to the protected page
+        driver.get(url)
 
-        if response.status_code == 200:
-            content = response.text.lower()
-            for keyword in ERROR_KEYWORDS:
-                if keyword in content:
-                    logging.warning(f"Keyword '{keyword}' found in {url}")
-                    send_email(
-                        "Website Content Error Detected ❌",
-                        f"The keyword '{keyword}' was found in the content of {url}. Please investigate."
-                    )
-                    break
-            else:
-                logging.info(f"✅ Site is up and content looks good: {url} — Status: {response.status_code}")
+        page_source = driver.page_source.lower()
+
+        for keyword in ERROR_KEYWORDS:
+            if keyword in page_source:
+                logging.warning(f"Keyword '{keyword}' found in {url}")
+                send_email(
+                    "Website Content Error Detected ❌",
+                    f"The keyword '{keyword}' was found in the content of {url}. Please investigate."
+                )
+                break
         else:
-            logging.error(f"{url} returned status {response.status_code}. Sending alert.")
-            send_email(
-                f"Website Status: DOWN ❌ ({response.status_code})",
-                f"{url} returned unexpected status code: {response.status_code}."
-            )
+            logging.info(f"✅ Site is up and content looks good: {url}")
+
+    except Exception as e:
+        logging.error(f"Error during selenium check: {e}")
+        send_email("Website Monitor Selenium Error ❌", f"Error during selenium check: {e}")
+
+    finally:
+        driver.quit()
 
 def check_website(url):
     try:
