@@ -1,3 +1,6 @@
+import chromedriver_autoinstaller  # Automatically handles matching ChromeDriver
+chromedriver_autoinstaller.install()
+
 import requests
 import smtplib
 from email.mime.text import MIMEText
