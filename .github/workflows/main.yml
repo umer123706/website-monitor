@@ -2,8 +2,8 @@ name: Website Monitor
 
 on:
   workflow_dispatch:
- # schedule:
-   # - cron: '*/10 * * * *'  # Run every 10 minutes
+# schedule:
+#   - cron: '*/10 * * * *'  # Run every 10 minutes (uncomment if needed)
 
 jobs:
   monitor:
@@ -25,3 +25,5 @@ jobs:
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          VST_USERNAME: ${{ secrets.VST_USERNAME }}
+          VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
