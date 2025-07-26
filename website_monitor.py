@@ -1,126 +1,95 @@
 import os
 import logging
+import time
 import smtplib
-import traceback
 from email.mime.text import MIMEText
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait, Select
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 
-# === Setup Logging ===
+# === Configuration ===
+URL = "https://console.vst-one.com/Home"
+USERNAME = "esc-con1"
+PASSWORD = "Vst@12345"
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+ALERT_TO = os.getenv("ALERT_TO")
+
+# === Logging ===
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-# === Config ===
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS") or "you@example.com"
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD") or "yourpassword"
-TO_EMAILS = ["umer@technevity.net"]
-
-USERNAME = os.getenv("VST_USERNAME") or "esc-con1"
-PASSWORD = os.getenv("VST_PASSWORD") or "Vst@12345"
-
-LOGIN_URL = "https://console.vst-one.com/Home"
-ERROR_KEYWORDS = ["exception", "something went wrong! please try again."]
-
-# === Send Email ===
-def send_email(subject, body):
-    msg = MIMEText(body, "html")
+# === Send email on failure ===
+def send_email_alert(subject, body):
+    msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
-    msg["To"] = ", ".join(TO_EMAILS)
-    try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
-            server.starttls()
-            server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
-        logging.info("✅ Email sent.")
-    except Exception as e:
-        logging.error(f"❌ Failed to send email: {e}")
+    msg["To"] = ALERT_TO
 
-# === Website Check Logic ===
+    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+        server.starttls()
+        server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+        server.send_message(msg)
+    logging.info("📧 Email alert sent.")
+
+# === Website check ===
 def check_website():
-    driver = None
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    logging.info("🌐 Starting browser...")
+    driver = webdriver.Chrome(options=options)
+    wait = WebDriverWait(driver, 60)
+
     try:
-        logging.info("🚀 Launching browser...")
-        options = Options()
-        options.add_argument("--headless=new")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
+        logging.info(f"🔍 Navigating to {URL} ...")
+        driver.get(URL)
 
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 30)
-
-        logging.info("🔐 Navigating to login page...")
-        driver.get(LOGIN_URL)
-
-        # Optional: Save the initial page for debugging
-        with open("login_page.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-        driver.save_screenshot("login_page.png")
-
-        # === Robust Username Field Location ===
-        try:
-            username_input = wait.until(
-                EC.presence_of_element_located((By.NAME, "Username"))
-            )
-        except:
-            username_input = wait.until(
-                EC.presence_of_element_located((By.XPATH, "//input[@type='text' or @id='Username']"))
-            )
+        # === Username Field ===
+        logging.info("👤 Locating username field...")
+        username_input = wait.until(
+            EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Username']"))
+        )
         username_input.send_keys(USERNAME)
 
         # === Password Field ===
+        logging.info("🔐 Locating password field...")
         password_input = wait.until(
-            EC.presence_of_element_located((By.XPATH, "//input[@type='password']"))
+            EC.element_to_be_clickable((By.XPATH, "//input[@type='password']"))
         )
-        password_input.send_keys(PASSWORD)
+
+        try:
+            password_input.send_keys(PASSWORD)
+        except:
+            logging.warning("⚠️ Normal send_keys failed; using JavaScript fallback.")
+            driver.execute_script("arguments[0].value = arguments[1];", password_input, PASSWORD)
 
         # === Login Button ===
-        login_btn = wait.until(
-            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Login')]"))
+        logging.info("➡️ Clicking login button...")
+        login_button = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']"))
         )
-        login_btn.click()
-        logging.info("✅ Login submitted.")
+        login_button.click()
 
-        # === Select ESC1 ===
-        logging.info("⏳ Waiting for dropdown...")
-        wait.until(EC.presence_of_element_located((By.XPATH, "//select")))
+        # === Check login success (modify this based on page behavior) ===
+        logging.info("⏳ Waiting to confirm successful login...")
+        wait.until(EC.presence_of_element_located((By.XPATH, "//a[contains(., 'Logout')]")))
 
-        logging.info("📍 Selecting 'ESC1'...")
-        select = Select(driver.find_element(By.XPATH, "//select"))
-        select.select_by_visible_text("ESC1")
-
-        logging.info("➡️ Clicking 'Begin'...")
-        wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Begin')]"))).click()
-
-        # === Final Error Check ===
-        logging.info("🔍 Checking for error keywords...")
-        page_content = driver.page_source.lower()
-        for keyword in ERROR_KEYWORDS:
-            if keyword in page_content:
-                logging.warning(f"⚠️ Found keyword: {keyword}")
-                send_email("❌ VSTOne Error Detected", f"<b>Detected:</b> {keyword}<br><br>URL: {LOGIN_URL}")
-                return
-
-        logging.info("✅ All steps completed successfully.")
-        driver.quit()
+        logging.info("✅ Website is accessible and login succeeded.")
 
     except Exception as e:
-        tb = traceback.format_exc()
-        logging.error("❌ Exception occurred:\n" + tb)
-        try:
-            if driver:
-                driver.save_screenshot("error.png")
-                with open("error.html", "w", encoding="utf-8") as f:
-                    f.write(driver.page_source)
-        except Exception as inner:
-            logging.warning(f"Could not capture error snapshot: {inner}")
-        send_email("❌ Website Monitor Script Failed", f"<pre>{tb}</pre>")
+        logging.error(f"❌ Error during check: {e}")
+        send_email_alert("🚨 VST Login Check Failed", str(e))
 
-# === Entry Point ===
+    finally:
+        driver.quit()
+        logging.info("🧹 Browser closed.")
+
 if __name__ == "__main__":
     check_website()
+
