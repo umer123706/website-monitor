@@ -1,6 +1,7 @@
 import os
 import logging
 import smtplib
+import traceback
 from email.mime.text import MIMEText
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -10,10 +11,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
-# Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# Config
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 TO_EMAILS = ["umer@technevity.net"]
@@ -44,6 +43,7 @@ def send_email(subject, body):
         logging.error(f"Failed to send email: {e}")
 
 def check_website():
+    driver = None
     try:
         options = Options()
         options.add_argument("--headless")
@@ -52,7 +52,7 @@ def check_website():
 
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 20)  # Increase timeout to 20 seconds
 
         driver.get(LOGIN_URL)
         logging.info("Opened login page.")
@@ -71,7 +71,7 @@ def check_website():
 
         logging.info("Clicked login button.")
 
-        # Wait for protected page indicator (like presence of Logout link or specific element)
+        # Wait for protected page indicator (Logout link)
         wait.until(EC.presence_of_element_located((By.LINK_TEXT, "Logout")))
         logging.info("Login successful.")
 
@@ -90,12 +90,28 @@ def check_website():
         else:
             logging.info("Protected page loaded cleanly.")
 
-        driver.quit()
-
     except Exception as e:
         logging.error(f"An error occurred during website check: {e}")
-        send_email("Website Monitor Failure ❌", f"An error occurred:\n{e}")
+        if driver:
+            # Save screenshot and page source for debugging
+            screenshot_path = "error_screenshot.png"
+            page_source_path = "error_page.html"
+            driver.save_screenshot(screenshot_path)
+            with open(page_source_path, "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+            logging.info(f"Saved screenshot to {screenshot_path} and page source to {page_source_path}")
+
+            body = f"An error occurred:\n{traceback.format_exc()}\n\nScreenshot and page source saved."
+        else:
+            body = f"An error occurred:\n{traceback.format_exc()}"
+
+        send_email("Website Monitor Failure ❌", body)
+
+    finally:
+        if driver:
+            driver.quit()
 
 if __name__ == "__main__":
     check_website()
+
 
