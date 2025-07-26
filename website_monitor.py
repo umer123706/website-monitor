@@ -1,10 +1,16 @@
 import os
+import time
 import logging
-import requests
 import smtplib
 from email.mime.text import MIMEText
 
-# Setup basic logging
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import NoSuchElementException
+from webdriver_manager.chrome import ChromeDriverManager
+
+# Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # Email config
@@ -17,18 +23,11 @@ TO_EMAILS = [
     "umer@technevity.net",
 ]
 
-# API endpoints
-LOGIN_API = "https://console.vst-one.com/service/console/api/Login"
-PROTECTED_API = "https://console.vst-one.com/service/console/api/ProtectedResource"  # change to real protected URL
+LOGIN_URL = "https://console.vst-one.com/Home"
+PROTECTED_URL = "https://console.vst-one.com/Home/About"
 
 USERNAME = "esc-con1"
 PASSWORD = "Vst@12345"
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Content-Type": "application/json; charset=UTF-8",
-    "Origin": "https://console.vst-one.com",
-}
 
 ERROR_KEYWORDS = [
     "exception",
@@ -47,57 +46,53 @@ def send_email(subject, body):
             server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
         logging.info("Email sent.")
     except Exception as e:
-        logging.error(f"Email send failed: {e}")
+        logging.error(f"Failed to send email: {e}")
 
-def check_protected_website():
-    with requests.Session() as session:
+def check_website():
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+
+    try:
+        logging.info("Opening login page...")
+        driver.get(LOGIN_URL)
+        time.sleep(2)
+
+        logging.info("Filling login form...")
+        driver.find_element(By.NAME, "Email").send_keys(USERNAME)
+        driver.find_element(By.NAME, "Password").send_keys(PASSWORD)
+
+        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
+        time.sleep(5)  # wait for login to process
+
+        # Check if login succeeded by presence of logout button/link or absence of error
         try:
-            # Step 1: Login via API, sending JSON
-            payload = {
-                "Email": USERNAME,
-                "Password": PASSWORD
-            }
-            login_resp = session.post(LOGIN_API, json=payload, headers=HEADERS)
-            login_resp.raise_for_status()
-            data = login_resp.json()
+            driver.find_element(By.LINK_TEXT, "Logout")
+            logging.info("Login successful.")
+        except NoSuchElementException:
+            logging.error("Login failed - logout link not found.")
+            send_email("VST Login Failed ❌", "Login failed for https://console.vst-one.com/Home. Please verify credentials.")
+            return
 
-            # Adjust the key based on your API response
-            token = data.get("authorizationToken") or data.get("token") or data.get("accessToken")
-            if not token:
-                raise Exception("Login failed: no token received in response.")
+        logging.info("Accessing protected page...")
+        driver.get(PROTECTED_URL)
+        time.sleep(3)
 
-            logging.info("Login successful, token obtained.")
+        page_source = driver.page_source.lower()
+        for keyword in ERROR_KEYWORDS:
+            if keyword in page_source:
+                logging.warning(f"Keyword '{keyword}' found in protected page content!")
+                send_email("Website Error Detected ❌", f"Keyword '{keyword}' found on {PROTECTED_URL}.")
+                break
+        else:
+            logging.info("✅ Protected page content is clean.")
 
-            # Step 2: Access protected API endpoint using token in header
-            auth_headers = HEADERS.copy()
-            auth_headers["Authorization"] = token
+    except Exception as e:
+        logging.error(f"Error during website check: {e}")
+        send_email("Website Monitor Failed ❌", f"An error occurred: {e}")
 
-            protected_resp = session.get(PROTECTED_API, headers=auth_headers)
-            protected_resp.raise_for_status()
-
-            content = protected_resp.text.lower()
-
-            for keyword in ERROR_KEYWORDS:
-                if keyword in content:
-                    logging.warning(f"Keyword '{keyword}' found in protected resource")
-                    send_email(
-                        "Website Error Detected ❌",
-                        f"Keyword '{keyword}' found in protected resource content."
-                    )
-                    break
-            else:
-                logging.info("✅ Protected resource loaded successfully and content is clean.")
-
-        except Exception as e:
-            logging.error(f"Error during protected site check: {e}")
-            send_email(
-                "Protected Site Check Failed ❌",
-                f"An error occurred while checking the protected site:\n{e}"
-            )
-
-def main():
-    check_protected_website()
+    finally:
+        driver.quit()
 
 if __name__ == "__main__":
-    main()
-
+    check_website()
