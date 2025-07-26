@@ -5,10 +5,9 @@ import smtplib
 from email.mime.text import MIMEText
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
 
 # === Configuration ===
 URL = "https://console.vst-one.com/Home"
@@ -38,6 +37,7 @@ def check_website():
     chrome_options.add_argument("--headless")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--window-size=1920,1080")
 
     driver = webdriver.Chrome(options=chrome_options)
     driver.set_page_load_timeout(30)
@@ -48,6 +48,7 @@ def check_website():
 
         wait = WebDriverWait(driver, 20)
 
+        # Login
         logging.info("👤 Locating username input...")
         username_input = wait.until(EC.presence_of_element_located((By.ID, "Username")))
         username_input.clear()
@@ -62,26 +63,27 @@ def check_website():
         login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
         login_button.click()
 
+        # Unit selection
         logging.info("⏳ Waiting for unit selection dropdown...")
         unit_dropdown = wait.until(EC.presence_of_element_located((By.ID, "WorkStationId")))
         select = Select(unit_dropdown)
         select.select_by_visible_text("ESC1")
         logging.info("✅ Selected unit ESC1")
 
-        proceed_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
-        proceed_button.click()
-        logging.info("➡️ Proceeded after unit selection.")
+        logging.info("➡️ Clicking Begin button...")
+        begin_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Begin')]")))
+        begin_button.click()
 
+        # Wait for Dashboard
         logging.info("✅ Checking if dashboard loaded...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//span[contains(text(),'Dashboard')]")))
         logging.info("🎉 Website and login working correctly!")
 
     except Exception as e:
         logging.error(f"❌ Login check failed: {e}")
-        send_email_alert("VST Website Login Failed", f"Error during login check: {e}")
+        send_email_alert("VST Website Login Failed", f"Error during login check:\n{e}")
     finally:
         driver.quit()
 
 if __name__ == "__main__":
     check_website()
-
