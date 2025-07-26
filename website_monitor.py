@@ -51,7 +51,7 @@ def check_website():
 
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 120)
 
         logging.info("🔐 Opening login page...")
         driver.get(LOGIN_URL)
