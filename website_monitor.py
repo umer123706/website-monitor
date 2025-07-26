@@ -1,7 +1,6 @@
 import os
 import logging
 import smtplib
-import traceback
 from email.mime.text import MIMEText
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
@@ -11,8 +10,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
+# Setup logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
+# Config
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 TO_EMAILS = ["umer@technevity.net"]
@@ -43,7 +44,6 @@ def send_email(subject, body):
         logging.error(f"Failed to send email: {e}")
 
 def check_website():
-    driver = None
     try:
         options = Options()
         options.add_argument("--headless")
@@ -52,28 +52,37 @@ def check_website():
 
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 20)  # Increase timeout to 20 seconds
+        wait = WebDriverWait(driver, 10)
 
         driver.get(LOGIN_URL)
         logging.info("Opened login page.")
 
-        # Wait for and fill Username
+        # Fill Username
         username_input = wait.until(EC.presence_of_element_located((By.NAME, "Username")))
         username_input.send_keys(USERNAME)
 
-        # Wait for and fill Password
+        # Fill Password
         password_input = wait.until(EC.presence_of_element_located((By.NAME, "Password")))
         password_input.send_keys(PASSWORD)
 
-        # Click Login button (adjust text if needed)
+        # Click Login button
         login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Login')]")))
         login_button.click()
-
         logging.info("Clicked login button.")
 
-        # Wait for protected page indicator (Logout link)
+        # Wait for and click "Select Unit" dropdown
+        select_unit_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'Select Unit')]")))
+        select_unit_dropdown.click()
+        logging.info("Clicked 'Select Unit' dropdown.")
+
+        # Wait for and click the "ESC1" option
+        esc1_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(),'ESC1')]")))
+        esc1_option.click()
+        logging.info("Selected 'ESC1' unit.")
+
+        # Wait for successful login (presence of Logout)
         wait.until(EC.presence_of_element_located((By.LINK_TEXT, "Logout")))
-        logging.info("Login successful.")
+        logging.info("Login and unit selection successful.")
 
         # Navigate to protected page
         driver.get(PROTECTED_URL)
@@ -90,26 +99,11 @@ def check_website():
         else:
             logging.info("Protected page loaded cleanly.")
 
+        driver.quit()
+
     except Exception as e:
         logging.error(f"An error occurred during website check: {e}")
-        if driver:
-            # Save screenshot and page source for debugging
-            screenshot_path = "error_screenshot.png"
-            page_source_path = "error_page.html"
-            driver.save_screenshot(screenshot_path)
-            with open(page_source_path, "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-            logging.info(f"Saved screenshot to {screenshot_path} and page source to {page_source_path}")
-
-            body = f"An error occurred:\n{traceback.format_exc()}\n\nScreenshot and page source saved."
-        else:
-            body = f"An error occurred:\n{traceback.format_exc()}"
-
-        send_email("Website Monitor Failure ❌", body)
-
-    finally:
-        if driver:
-            driver.quit()
+        send_email("Website Monitor Failure ❌", f"An error occurred:\n{e}")
 
 if __name__ == "__main__":
     check_website()
