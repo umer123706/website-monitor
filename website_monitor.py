@@ -1,3 +1,4 @@
+
 import os
 import logging
 import requests
@@ -14,16 +15,18 @@ SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-TO_EMAILS = ["umer@technevity.net"]
+TO_EMAILS = [
+    "umer@technevity.net",
+]
 
-URL_TO_MONITOR = "https://console.vst-one.com/Home/About"
 LOGIN_URL = "https://console.vst-one.com/Home/Login"
+PROTECTED_URL = "https://console.vst-one.com/Home/About"
 
 USERNAME = "esc-con1"
 PASSWORD = "Vst@12345"
 
 HEADERS = {
-    "User-Agent": "WebsiteMonitor/1.0"
+    "User-Agent": "Mozilla/5.0"
 }
 
 ERROR_KEYWORDS = [
@@ -48,7 +51,7 @@ def send_email(subject, body):
 def check_protected_website():
     with requests.Session() as session:
         try:
-            # Step 1: GET login page to fetch CSRF token
+            # Step 1: GET login page and extract token
             login_page = session.get(LOGIN_URL, headers=HEADERS)
             soup = BeautifulSoup(login_page.text, "html.parser")
             token_input = soup.find("input", {"name": "__RequestVerificationToken"})
@@ -56,30 +59,30 @@ def check_protected_website():
                 raise Exception("Token not found on login page.")
             token = token_input["value"]
 
-            # Step 2: POST login request
+            # Step 2: POST login with token and credentials
             payload = {
                 "__RequestVerificationToken": token,
                 "Email": USERNAME,
                 "Password": PASSWORD
             }
-
             response = session.post(LOGIN_URL, data=payload, headers=HEADERS)
 
+            # Step 3: Verify login success
             if "Logout" not in response.text:
                 logging.error("Login failed: check credentials or site layout.")
                 send_email("VST Login Failed ❌", "Login failed for https://console.vst-one.com/Home. Please verify credentials.")
                 return
 
-            # Step 3: GET protected content
-            page = session.get(URL_TO_MONITOR, headers=HEADERS)
+            # Step 4: Access protected page
+            page = session.get(PROTECTED_URL, headers=HEADERS)
             content = page.text.lower()
 
             for keyword in ERROR_KEYWORDS:
                 if keyword in content:
-                    logging.warning(f"Keyword '{keyword}' found in {URL_TO_MONITOR}")
+                    logging.warning(f"Keyword '{keyword}' found in {PROTECTED_URL}")
                     send_email(
                         "Website Error Detected ❌",
-                        f"Keyword '{keyword}' found in {URL_TO_MONITOR} content."
+                        f"Keyword '{keyword}' found in {PROTECTED_URL} content."
                     )
                     break
             else:
@@ -97,4 +100,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
