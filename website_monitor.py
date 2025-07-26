@@ -17,11 +17,6 @@ TO_EMAILS = [
     "umer@technevity.net",
 ]
 
-URLS_TO_MONITOR = [
-    "https://console.vst-one.com/Home/About",  # protected
-    "https://vstalert.com/Business/Index",     # public
-]
-
 HEADERS = {
     "User-Agent": "WebsiteMonitor/1.0"
 }
@@ -45,7 +40,7 @@ def send_email(subject, body):
     except Exception as e:
         logging.error(f"Email send failed: {e}")
 
-def check_protected_website():
+def check_console_vst():
     login_url = "https://console.vst-one.com/Home/Login"
     target_url = "https://console.vst-one.com/Home/About"
 
@@ -54,7 +49,7 @@ def check_protected_website():
 
     with requests.Session() as session:
         try:
-            # Attempt login
+            # Login attempt
             payload = {
                 "Email": USERNAME,
                 "Password": PASSWORD
@@ -66,7 +61,7 @@ def check_protected_website():
                 send_email("VST Login Failed ❌", "Login failed for vst-one.com. Please verify credentials.")
                 return
 
-            # Now access the protected page
+            # Check the protected About page
             page = session.get(target_url, headers=HEADERS)
             content = page.text.lower()
 
@@ -79,39 +74,17 @@ def check_protected_website():
                     )
                     break
             else:
-                logging.info("✅ Protected page loaded successfully and content is clean.")
+                logging.info("✅ VST console page loaded successfully and is clean.")
 
         except Exception as e:
-            logging.error(f"Error during protected site check: {e}")
+            logging.error(f"Error checking console site: {e}")
             send_email(
-                "Protected Site Check Failed ❌",
-                f"An error occurred while checking the protected site:\n{e}"
+                "Console Site Check Failed ❌",
+                f"An error occurred while checking the site:\n{e}"
             )
 
-def check_public_website(url):
-    try:
-        response = requests.get(url, timeout=10, headers=HEADERS)
-        if response.status_code == 200:
-            content = response.text.lower()
-            for keyword in ERROR_KEYWORDS:
-                if keyword in content:
-                    logging.warning(f"Keyword '{keyword}' found in {url}")
-                    send_email("Website Error ❌", f"Keyword '{keyword}' found in {url}.")
-                    return
-            logging.info(f"✅ Public site OK: {url}")
-        else:
-            logging.error(f"{url} returned {response.status_code}")
-            send_email(f"Site DOWN ❌", f"{url} returned status code: {response.status_code}")
-    except Exception as e:
-        logging.error(f"Request failed: {e}")
-        send_email("Website DOWN ❌", f"Error accessing {url}: {e}")
-
 def main():
-    for url in URLS_TO_MONITOR:
-        if "console.vst-one.com" in url:
-            check_protected_website()
-        else:
-            check_public_website(url)
+    check_console_vst()
 
 if __name__ == "__main__":
     main()
