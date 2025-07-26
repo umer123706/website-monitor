@@ -51,19 +51,20 @@ def check_website():
 
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 120)
+        wait = WebDriverWait(driver, 30)
 
         logging.info("🔐 Opening login page...")
         driver.get(LOGIN_URL)
 
+        # Updated: Use placeholder-based XPath selectors
         logging.info("✍️ Entering credentials...")
-        wait.until(EC.presence_of_element_located((By.NAME, "Username"))).send_keys(USERNAME)
-        wait.until(EC.presence_of_element_located((By.NAME, "Password"))).send_keys(PASSWORD)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Username']"))).send_keys(USERNAME)
+        wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Password']"))).send_keys(PASSWORD)
 
         logging.info("➡️ Submitting login...")
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Login')]"))).click()
 
-        logging.info("⏳ Waiting for dropdown page...")
+        logging.info("⏳ Waiting for dropdown...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//select")))
 
         logging.info("📍 Selecting 'ESC1'...")
@@ -87,6 +88,12 @@ def check_website():
     except Exception as e:
         tb = traceback.format_exc()
         logging.error("❌ Exception occurred:\n" + tb)
+        try:
+            driver.save_screenshot("error.png")
+            with open("error.html", "w", encoding="utf-8") as f:
+                f.write(driver.page_source)
+        except:
+            pass
         send_email("❌ Website Monitor Script Failed", f"<pre>{tb}</pre>")
 
 # === Entry Point ===
