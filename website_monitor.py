@@ -1,15 +1,13 @@
-
 import os
 import logging
 import requests
 import smtplib
 from email.mime.text import MIMEText
-from bs4 import BeautifulSoup
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# Configuration
+# Email config
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
@@ -19,14 +17,17 @@ TO_EMAILS = [
     "umer@technevity.net",
 ]
 
-LOGIN_URL = "https://console.vst-one.com/Home/Login"
-PROTECTED_URL = "https://console.vst-one.com/Home/About"
+# API endpoints
+LOGIN_API = "https://console.vst-one.com/service/console/api/Login"
+PROTECTED_API = "https://console.vst-one.com/service/console/api/ProtectedResource"  # change to real protected URL
 
 USERNAME = "esc-con1"
 PASSWORD = "Vst@12345"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0"
+    "User-Agent": "Mozilla/5.0",
+    "Content-Type": "application/json; charset=UTF-8",
+    "Origin": "https://console.vst-one.com",
 }
 
 ERROR_KEYWORDS = [
@@ -51,42 +52,41 @@ def send_email(subject, body):
 def check_protected_website():
     with requests.Session() as session:
         try:
-            # Step 1: GET login page and extract token
-            login_page = session.get(LOGIN_URL, headers=HEADERS)
-            soup = BeautifulSoup(login_page.text, "html.parser")
-            token_input = soup.find("input", {"name": "__RequestVerificationToken"})
-            if not token_input:
-                raise Exception("Token not found on login page.")
-            token = token_input["value"]
-
-            # Step 2: POST login with token and credentials
+            # Step 1: Login via API, sending JSON
             payload = {
-                "__RequestVerificationToken": token,
                 "Email": USERNAME,
                 "Password": PASSWORD
             }
-            response = session.post(LOGIN_URL, data=payload, headers=HEADERS)
+            login_resp = session.post(LOGIN_API, json=payload, headers=HEADERS)
+            login_resp.raise_for_status()
+            data = login_resp.json()
 
-            # Step 3: Verify login success
-            if "Logout" not in response.text:
-                logging.error("Login failed: check credentials or site layout.")
-                send_email("VST Login Failed ❌", "Login failed for https://console.vst-one.com/Home. Please verify credentials.")
-                return
+            # Adjust the key based on your API response
+            token = data.get("authorizationToken") or data.get("token") or data.get("accessToken")
+            if not token:
+                raise Exception("Login failed: no token received in response.")
 
-            # Step 4: Access protected page
-            page = session.get(PROTECTED_URL, headers=HEADERS)
-            content = page.text.lower()
+            logging.info("Login successful, token obtained.")
+
+            # Step 2: Access protected API endpoint using token in header
+            auth_headers = HEADERS.copy()
+            auth_headers["Authorization"] = token
+
+            protected_resp = session.get(PROTECTED_API, headers=auth_headers)
+            protected_resp.raise_for_status()
+
+            content = protected_resp.text.lower()
 
             for keyword in ERROR_KEYWORDS:
                 if keyword in content:
-                    logging.warning(f"Keyword '{keyword}' found in {PROTECTED_URL}")
+                    logging.warning(f"Keyword '{keyword}' found in protected resource")
                     send_email(
                         "Website Error Detected ❌",
-                        f"Keyword '{keyword}' found in {PROTECTED_URL} content."
+                        f"Keyword '{keyword}' found in protected resource content."
                     )
                     break
             else:
-                logging.info("✅ Protected page loaded successfully and content is clean.")
+                logging.info("✅ Protected resource loaded successfully and content is clean.")
 
         except Exception as e:
             logging.error(f"Error during protected site check: {e}")
@@ -100,3 +100,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
