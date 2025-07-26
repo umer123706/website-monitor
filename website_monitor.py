@@ -42,8 +42,9 @@ def send_email(subject, body):
 
 # === Website Check Logic ===
 def check_website():
+    driver = None
     try:
-        logging.info("🚀 Starting headless browser...")
+        logging.info("🚀 Launching browser...")
         options = Options()
         options.add_argument("--headless=new")
         options.add_argument("--no-sandbox")
@@ -53,17 +54,39 @@ def check_website():
         driver = webdriver.Chrome(service=service, options=options)
         wait = WebDriverWait(driver, 30)
 
-        logging.info("🔐 Opening login page...")
+        logging.info("🔐 Navigating to login page...")
         driver.get(LOGIN_URL)
 
-        # Updated: Use placeholder-based XPath selectors
-        logging.info("✍️ Entering credentials...")
-        wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Username']"))).send_keys(USERNAME)
-        wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Password']"))).send_keys(PASSWORD)
+        # Optional: Save the initial page for debugging
+        with open("login_page.html", "w", encoding="utf-8") as f:
+            f.write(driver.page_source)
+        driver.save_screenshot("login_page.png")
 
-        logging.info("➡️ Submitting login...")
-        wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Login')]"))).click()
+        # === Robust Username Field Location ===
+        try:
+            username_input = wait.until(
+                EC.presence_of_element_located((By.NAME, "Username"))
+            )
+        except:
+            username_input = wait.until(
+                EC.presence_of_element_located((By.XPATH, "//input[@type='text' or @id='Username']"))
+            )
+        username_input.send_keys(USERNAME)
 
+        # === Password Field ===
+        password_input = wait.until(
+            EC.presence_of_element_located((By.XPATH, "//input[@type='password']"))
+        )
+        password_input.send_keys(PASSWORD)
+
+        # === Login Button ===
+        login_btn = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Login')]"))
+        )
+        login_btn.click()
+        logging.info("✅ Login submitted.")
+
+        # === Select ESC1 ===
         logging.info("⏳ Waiting for dropdown...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//select")))
 
@@ -71,29 +94,31 @@ def check_website():
         select = Select(driver.find_element(By.XPATH, "//select"))
         select.select_by_visible_text("ESC1")
 
-        logging.info("✅ Clicking 'Begin'...")
+        logging.info("➡️ Clicking 'Begin'...")
         wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Begin')]"))).click()
 
+        # === Final Error Check ===
         logging.info("🔍 Checking for error keywords...")
         page_content = driver.page_source.lower()
         for keyword in ERROR_KEYWORDS:
             if keyword in page_content:
-                logging.warning(f"⚠️ Found error keyword: {keyword}")
+                logging.warning(f"⚠️ Found keyword: {keyword}")
                 send_email("❌ VSTOne Error Detected", f"<b>Detected:</b> {keyword}<br><br>URL: {LOGIN_URL}")
                 return
 
-        logging.info("✅ Site check successful, no errors found.")
+        logging.info("✅ All steps completed successfully.")
         driver.quit()
 
     except Exception as e:
         tb = traceback.format_exc()
         logging.error("❌ Exception occurred:\n" + tb)
         try:
-            driver.save_screenshot("error.png")
-            with open("error.html", "w", encoding="utf-8") as f:
-                f.write(driver.page_source)
-        except:
-            pass
+            if driver:
+                driver.save_screenshot("error.png")
+                with open("error.html", "w", encoding="utf-8") as f:
+                    f.write(driver.page_source)
+        except Exception as inner:
+            logging.warning(f"Could not capture error snapshot: {inner}")
         send_email("❌ Website Monitor Script Failed", f"<pre>{tb}</pre>")
 
 # === Entry Point ===
