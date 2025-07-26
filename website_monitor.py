@@ -1,16 +1,12 @@
 import os
-import time
 import logging
 import smtplib
 from email.mime.text import MIMEText
-
 from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
-from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
-# Setup logging
+# Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # Email config
@@ -23,11 +19,12 @@ TO_EMAILS = [
     "umer@technevity.net",
 ]
 
-LOGIN_URL = "https://console.vst-one.com/Home"
-PROTECTED_URL = "https://console.vst-one.com/Home/About"
+# Website credentials from env (or hardcoded)
+USERNAME = os.getenv("VST_USERNAME", "esc-con1")
+PASSWORD = os.getenv("VST_PASSWORD", "Vst@12345")
 
-USERNAME = "esc-con1"
-PASSWORD = "Vst@12345"
+LOGIN_URL = "https://console.vst-one.com/Home/Login"
+PROTECTED_URL = "https://console.vst-one.com/Home/About"
 
 ERROR_KEYWORDS = [
     "exception",
@@ -46,51 +43,62 @@ def send_email(subject, body):
             server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
         logging.info("Email sent.")
     except Exception as e:
-        logging.error(f"Failed to send email: {e}")
+        logging.error(f"Email send failed: {e}")
 
 def check_website():
-    options = Options()
-    options.headless = True
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
-
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=options)
+    
     try:
         logging.info("Opening login page...")
         driver.get(LOGIN_URL)
-        time.sleep(2)
 
-        logging.info("Filling login form...")
-        driver.find_element(By.NAME, "Email").send_keys(USERNAME)
-        driver.find_element(By.NAME, "Password").send_keys(PASSWORD)
+        # Assuming the login form fields are 'Email' and 'Password', adjust selectors if needed
+        email_input = driver.find_element("name", "Email")
+        password_input = driver.find_element("name", "Password")
 
-        driver.find_element(By.CSS_SELECTOR, "button[type='submit']").click()
-        time.sleep(5)  # wait for login to process
+        email_input.send_keys(USERNAME)
+        password_input.send_keys(PASSWORD)
 
-        # Check if login succeeded by presence of logout button/link or absence of error
-        try:
-            driver.find_element(By.LINK_TEXT, "Logout")
-            logging.info("Login successful.")
-        except NoSuchElementException:
-            logging.error("Login failed - logout link not found.")
+        # Find and click login button (adjust selector if needed)
+        login_button = driver.find_element("xpath", "//button[contains(text(),'Login')]")
+        login_button.click()
+
+        # Wait for page to load after login (simple wait, can be improved)
+        driver.implicitly_wait(5)
+
+        # Check login success: look for "Logout" or other logged-in indicator
+        if "Logout" not in driver.page_source:
+            logging.error("Login failed: check credentials or site layout.")
             send_email("VST Login Failed ❌", "Login failed for https://console.vst-one.com/Home. Please verify credentials.")
             return
 
-        logging.info("Accessing protected page...")
+        logging.info("Login successful. Accessing protected page...")
         driver.get(PROTECTED_URL)
-        time.sleep(3)
+        content = driver.page_source.lower()
 
-        page_source = driver.page_source.lower()
         for keyword in ERROR_KEYWORDS:
-            if keyword in page_source:
-                logging.warning(f"Keyword '{keyword}' found in protected page content!")
-                send_email("Website Error Detected ❌", f"Keyword '{keyword}' found on {PROTECTED_URL}.")
+            if keyword in content:
+                logging.warning(f"Keyword '{keyword}' found in {PROTECTED_URL}")
+                send_email(
+                    "Website Error Detected ❌",
+                    f"Keyword '{keyword}' found in {PROTECTED_URL} content."
+                )
                 break
         else:
-            logging.info("✅ Protected page content is clean.")
+            logging.info("✅ Protected page loaded successfully and content is clean.")
 
     except Exception as e:
         logging.error(f"Error during website check: {e}")
-        send_email("Website Monitor Failed ❌", f"An error occurred: {e}")
-
+        send_email(
+            "Website Check Failed ❌",
+            f"An error occurred during website check:\n{e}"
+        )
     finally:
         driver.quit()
 
