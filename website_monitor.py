@@ -7,7 +7,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 
 # === Configuration ===
@@ -49,30 +49,31 @@ def check_website():
         wait = WebDriverWait(driver, 20)
 
         logging.info("👤 Locating username input...")
-        username_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Username']")))
+        username_input = wait.until(EC.presence_of_element_located((By.ID, "Username")))
+        username_input.clear()
         username_input.send_keys(USERNAME)
 
         logging.info("🔐 Locating password input...")
-        password_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Password']")))
+        password_input = wait.until(EC.presence_of_element_located((By.ID, "Password")))
+        password_input.clear()
         password_input.send_keys(PASSWORD)
 
         logging.info("➡️ Clicking login button...")
-        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']")))
+        login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
         login_button.click()
 
-        logging.info("⏳ Waiting for unit selection modal...")
-        unit_input = wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Select Unit']")))
-        unit_input.send_keys("ESC1")
-        time.sleep(1)
-        unit_input.send_keys(Keys.ARROW_DOWN)
-        unit_input.send_keys(Keys.ENTER)
+        logging.info("⏳ Waiting for unit selection dropdown...")
+        unit_dropdown = wait.until(EC.presence_of_element_located((By.ID, "WorkStationId")))
+        select = Select(unit_dropdown)
+        select.select_by_visible_text("ESC1")
+        logging.info("✅ Selected unit ESC1")
 
-        submit_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Submit')]")))
-        submit_button.click()
+        proceed_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
+        proceed_button.click()
+        logging.info("➡️ Proceeded after unit selection.")
 
-        logging.info("✅ Login and unit selection successful. Checking dashboard...")
+        logging.info("✅ Checking if dashboard loaded...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//span[contains(text(),'Dashboard')]")))
-
         logging.info("🎉 Website and login working correctly!")
 
     except Exception as e:
