@@ -18,7 +18,7 @@ jobs:
           python-version: '3.x'
 
       - name: Install Python dependencies
-        run: pip install requests selenium chromedriver-autoinstaller
+        run: pip install requests selenium chromedriver-autoinstaller beautifulsoup4
 
       - name: Run monitoring script
         run: python website_monitor.py
@@ -27,4 +27,3 @@ jobs:
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           VST_USERNAME: ${{ secrets.VST_USERNAME }}
           VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
-
