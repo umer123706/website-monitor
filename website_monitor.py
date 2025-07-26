@@ -9,15 +9,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-# === Configuration ===
+# === Configuration from GitHub Secrets ===
 URL = "https://console.vst-one.com/Home"
-USERNAME = "esc-con1"
-PASSWORD = "Vst@12345"
-SMTP_SERVER = "smtp.gmail.com"
-SMTP_PORT = 587
+USERNAME = os.getenv("VST_USERNAME")
+PASSWORD = os.getenv("VST_PASSWORD")
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-ALERT_TO = os.getenv("ALERT_TO")
+ALERT_TO = os.getenv("ALERT_TO", EMAIL_ADDRESS)  # fallback to sender if ALERT_TO not set
 
 # === Logging ===
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -29,7 +27,7 @@ def send_email_alert(subject, body):
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = ALERT_TO
 
-    with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
         server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.send_message(msg)
@@ -44,21 +42,21 @@ def check_website():
 
     logging.info("🌐 Starting browser...")
     driver = webdriver.Chrome(options=options)
-    wait = WebDriverWait(driver, 60)
+    wait = WebDriverWait(driver, 20)
 
     try:
         logging.info(f"🔍 Navigating to {URL} ...")
         driver.get(URL)
 
-        # === Username Field ===
-        logging.info("👤 Locating username field...")
+        # === Username field ===
+        logging.info("👤 Locating username input...")
         username_input = wait.until(
             EC.presence_of_element_located((By.XPATH, "//input[@placeholder='Username']"))
         )
         username_input.send_keys(USERNAME)
 
-        # === Password Field ===
-        logging.info("🔐 Locating password field...")
+        # === Password field ===
+        logging.info("🔐 Locating password input...")
         password_input = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//input[@type='password']"))
         )
@@ -66,30 +64,29 @@ def check_website():
         try:
             password_input.send_keys(PASSWORD)
         except:
-            logging.warning("⚠️ Normal send_keys failed; using JavaScript fallback.")
+            logging.warning("⚠️ Standard send_keys failed; using JS fallback.")
             driver.execute_script("arguments[0].value = arguments[1];", password_input, PASSWORD)
 
-        # === Login Button ===
+        # === Click login button ===
         logging.info("➡️ Clicking login button...")
         login_button = wait.until(
             EC.element_to_be_clickable((By.XPATH, "//button[@type='submit']"))
         )
         login_button.click()
 
-        # === Check login success (modify this based on page behavior) ===
-        logging.info("⏳ Waiting to confirm successful login...")
+        # === Confirm login success ===
+        logging.info("⏳ Waiting for successful login...")
         wait.until(EC.presence_of_element_located((By.XPATH, "//a[contains(., 'Logout')]")))
 
         logging.info("✅ Website is accessible and login succeeded.")
 
     except Exception as e:
-        logging.error(f"❌ Error during check: {e}")
+        logging.error(f"❌ Login check failed: {e}")
         send_email_alert("🚨 VST Login Check Failed", str(e))
 
     finally:
         driver.quit()
-        logging.info("🧹 Browser closed.")
+        logging.info("🧹 Browser session closed.")
 
 if __name__ == "__main__":
     check_website()
-
