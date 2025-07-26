@@ -6,7 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.ui import WebDriverWait, Select
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 
@@ -14,23 +14,18 @@ from webdriver_manager.chrome import ChromeDriverManager
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
 # Config
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS") or "you@example.com"
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD") or "yourpassword"
 TO_EMAILS = ["umer@technevity.net"]
 
 USERNAME = os.getenv("VST_USERNAME", "esc-con1")
 PASSWORD = os.getenv("VST_PASSWORD", "Vst@12345")
 
 LOGIN_URL = "https://console.vst-one.com/Home"
-PROTECTED_URL = "https://console.vst-one.com/Home/About"
-
-ERROR_KEYWORDS = [
-    "exception",
-    "something went wrong! please try again.",
-]
+ERROR_KEYWORDS = ["exception", "something went wrong! please try again."]
 
 def send_email(subject, body):
-    msg = MIMEText(body)
+    msg = MIMEText(body, "html")
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = ", ".join(TO_EMAILS)
@@ -52,60 +47,44 @@ def check_website():
 
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 20)
 
         driver.get(LOGIN_URL)
         logging.info("Opened login page.")
 
-        # Fill Username
-        username_input = wait.until(EC.presence_of_element_located((By.NAME, "Username")))
-        username_input.send_keys(USERNAME)
+        # Login
+        wait.until(EC.presence_of_element_located((By.NAME, "Username"))).send_keys(USERNAME)
+        wait.until(EC.presence_of_element_located((By.NAME, "Password"))).send_keys(PASSWORD)
+        wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Login')]"))).click()
+        logging.info("Submitted login.")
 
-        # Fill Password
-        password_input = wait.until(EC.presence_of_element_located((By.NAME, "Password")))
-        password_input.send_keys(PASSWORD)
+        # Wait for dropdown page
+        wait.until(EC.presence_of_element_located((By.XPATH, "//select")))
+        logging.info("Dropdown page loaded.")
 
-        # Click Login button
-        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Login')]")))
-        login_button.click()
-        logging.info("Clicked login button.")
+        # Select ESC1 unit
+        select = Select(driver.find_element(By.XPATH, "//select"))
+        select.select_by_visible_text("ESC1")
+        logging.info("Selected ESC1.")
 
-        # Wait for and click "Select Unit" dropdown
-        select_unit_dropdown = wait.until(EC.element_to_be_clickable((By.XPATH, "//span[contains(text(),'Select Unit')]")))
-        select_unit_dropdown.click()
-        logging.info("Clicked 'Select Unit' dropdown.")
+        # Click Begin
+        wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Begin')]"))).click()
+        logging.info("Clicked Begin.")
 
-        # Wait for and click the "ESC1" option
-        esc1_option = wait.until(EC.element_to_be_clickable((By.XPATH, "//li[contains(text(),'ESC1')]")))
-        esc1_option.click()
-        logging.info("Selected 'ESC1' unit.")
-
-        # Wait for successful login (presence of Logout)
-        wait.until(EC.presence_of_element_located((By.LINK_TEXT, "Logout")))
-        logging.info("Login and unit selection successful.")
-
-        # Navigate to protected page
-        driver.get(PROTECTED_URL)
-        content = driver.page_source.lower()
-
+        # Final check (can customize this further)
+        page_content = driver.page_source.lower()
         for keyword in ERROR_KEYWORDS:
-            if keyword in content:
-                logging.warning(f"Keyword '{keyword}' found on protected page.")
-                send_email(
-                    "Website Error Detected ❌",
-                    f"Keyword '{keyword}' found in protected page content."
-                )
-                break
-        else:
-            logging.info("Protected page loaded cleanly.")
+            if keyword in page_content:
+                send_email("❌ VSTOne Error", f"Found keyword '{keyword}' in content.")
+                return
 
+        logging.info("✅ Login + ESC1 selection succeeded.")
         driver.quit()
 
     except Exception as e:
-        logging.error(f"An error occurred during website check: {e}")
-        send_email("Website Monitor Failure ❌", f"An error occurred:\n{e}")
+        logging.error(f"An error occurred: {e}")
+        send_email("❌ Website Monitor Error", f"<pre>{e}</pre>")
 
 if __name__ == "__main__":
     check_website()
-
 
