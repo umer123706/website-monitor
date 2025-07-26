@@ -3,11 +3,12 @@ import logging
 import requests
 import smtplib
 from email.mime.text import MIMEText
+from bs4 import BeautifulSoup
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# Email config
+# Configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
@@ -15,18 +16,20 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 TO_EMAILS = ["umer@technevity.net"]
 
-# Headers and error checks
+URL_TO_MONITOR = "https://console.vst-one.com/Home/About"
+LOGIN_URL = "https://console.vst-one.com/Home/Login"
+
+USERNAME = "esc-con1"
+PASSWORD = "Vst@12345"
+
 HEADERS = {
     "User-Agent": "WebsiteMonitor/1.0"
 }
+
 ERROR_KEYWORDS = [
     "exception",
     "something went wrong! please try again.",
 ]
-
-# VST credentials
-USERNAME = "esc-con1"
-PASSWORD = "Vst@12345"
 
 def send_email(subject, body):
     msg = MIMEText(body)
@@ -37,46 +40,60 @@ def send_email(subject, body):
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
-        logging.info("✅ Email sent.")
+            server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
+        logging.info("Email sent.")
     except Exception as e:
-        logging.error(f"❌ Failed to send email: {e}")
+        logging.error(f"Email send failed: {e}")
 
-def check_vst_console():
-    login_url = "https://console.vst-one.com/Home"
-    about_url = "https://console.vst-one.com/Home/About"
-
+def check_protected_website():
     with requests.Session() as session:
         try:
-            # Login
+            # Step 1: GET login page to fetch CSRF token
+            login_page = session.get(LOGIN_URL, headers=HEADERS)
+            soup = BeautifulSoup(login_page.text, "html.parser")
+            token_input = soup.find("input", {"name": "__RequestVerificationToken"})
+            if not token_input:
+                raise Exception("Token not found on login page.")
+            token = token_input["value"]
+
+            # Step 2: POST login request
             payload = {
+                "__RequestVerificationToken": token,
                 "Email": USERNAME,
                 "Password": PASSWORD
             }
-            response = session.post(login_url, data=payload, headers=HEADERS)
+
+            response = session.post(LOGIN_URL, data=payload, headers=HEADERS)
+
             if "Logout" not in response.text:
-                logging.error("❌ Login failed.")
+                logging.error("Login failed: check credentials or site layout.")
                 send_email("VST Login Failed ❌", "Login failed for https://console.vst-one.com/Home. Please verify credentials.")
                 return
 
-            # Check About page
-            page = session.get(about_url, headers=HEADERS)
+            # Step 3: GET protected content
+            page = session.get(URL_TO_MONITOR, headers=HEADERS)
             content = page.text.lower()
 
             for keyword in ERROR_KEYWORDS:
                 if keyword in content:
-                    logging.warning(f"⚠️ Keyword '{keyword}' found.")
-                    send_email("Website Error ❌", f"Keyword '{keyword}' found in About page.")
-                    return
-
-            logging.info("✅ VST console is healthy.")
+                    logging.warning(f"Keyword '{keyword}' found in {URL_TO_MONITOR}")
+                    send_email(
+                        "Website Error Detected ❌",
+                        f"Keyword '{keyword}' found in {URL_TO_MONITOR} content."
+                    )
+                    break
+            else:
+                logging.info("✅ Protected page loaded successfully and content is clean.")
 
         except Exception as e:
-            logging.error(f"❌ Exception during check: {e}")
-            send_email("Console Check Failed ❌", f"An error occurred:\n{e}")
+            logging.error(f"Error during protected site check: {e}")
+            send_email(
+                "Protected Site Check Failed ❌",
+                f"An error occurred while checking the protected site:\n{e}"
+            )
 
 def main():
-    check_vst_console()
+    check_protected_website()
 
 if __name__ == "__main__":
     main()
