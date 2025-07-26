@@ -71,22 +71,29 @@ def check_protected_website(url):
     options.add_argument("--disable-dev-shm-usage")
 
     driver = webdriver.Chrome(options=options)
-    wait = WebDriverWait(driver, 15)
+    wait = WebDriverWait(driver, 20)
 
     try:
         logging.info("Opening login page...")
         driver.get("https://console.vst-one.com/Home")
 
         # Login
-        wait.until(EC.presence_of_element_located((By.NAME, "Email"))).send_keys(USERNAME)
-        driver.find_element(By.NAME, "Password").send_keys(PASSWORD)
-        driver.find_element(By.XPATH, "//button[contains(text(),'Login')]").click()
+        email_input = wait.until(EC.presence_of_element_located((By.NAME, "Email")))
+        password_input = wait.until(EC.presence_of_element_located((By.NAME, "Password")))
 
-        # Wait until dropdown appears and is clickable
+        email_input.send_keys(USERNAME)
+        password_input.send_keys(PASSWORD)
+
+        time.sleep(0.5)  # Short delay to ensure input registers
+
+        login_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(),'Login')]")))
+        login_button.click()
+
+        # Wait for dropdown to be clickable
         wait.until(EC.presence_of_element_located((By.ID, "unitSelectDropdown")))
         wait.until(EC.element_to_be_clickable((By.ID, "unitSelectDropdown")))
 
-        # Attempt to select "ESC1" safely
+        # Attempt to select "ESC1"
         for _ in range(10):
             try:
                 select_element = driver.find_element(By.ID, "unitSelectDropdown")
@@ -95,7 +102,7 @@ def check_protected_website(url):
                 if "ESC1" in options:
                     select.select_by_visible_text("ESC1")
                     break
-            except Exception as e:
+            except Exception:
                 logging.warning("Waiting for ESC1 to appear in dropdown...")
                 time.sleep(1)
         else:
@@ -103,10 +110,8 @@ def check_protected_website(url):
             send_email("Website Monitor Dropdown Failure ❌", "ESC1 option not found in unitSelectDropdown")
             return
 
-        # Wait a bit for page to load
-        time.sleep(3)
+        time.sleep(3)  # Wait for page transition/load
 
-        # Access target page
         driver.get(url)
         page_source = driver.page_source.lower()
 
@@ -123,8 +128,7 @@ def check_protected_website(url):
 
     except Exception as e:
         logging.error(f"Error during selenium check: {e}")
-       ## send_email("Website Monitor Selenium Error ❌", f"Error during selenium check: {e}")
-
+        send_email("Website Monitor Selenium Error ❌", f"Error during selenium check: {e}")
     finally:
         driver.quit()
 
