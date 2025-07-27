@@ -19,12 +19,13 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install selenium webdriver-manager
+          pip install selenium webdriver-manager pillow
 
-      - name: Run monitor
+      - name: Run monitor script
         env:
-          VST_USERNAME: ${{ secrets.VST_USERNAME }}
-          VST_PASSWORD: ${{ secrets.VST_PASSWORD }}
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-        run: python website_monitor.py
+          RECIPIENT_EMAIL: "umer@technevity.net"  # your alert recipient
+        run: |
+          python website_monitor.py
+
