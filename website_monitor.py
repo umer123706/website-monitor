@@ -46,7 +46,7 @@ def check_website():
         logging.info(f"🔍 Navigating to {URL} ...")
         driver.get(URL)
 
-        wait = WebDriverWait(driver, 20)
+        wait = WebDriverWait(driver, 120)
 
         # Login
         logging.info("👤 Locating username input...")
