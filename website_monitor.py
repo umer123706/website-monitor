@@ -1,102 +1,119 @@
-import os
-import logging
+import requests
 import smtplib
 from email.mime.text import MIMEText
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
-from PIL import Image
+import os
+import logging
 import time
 
-# === Config ===
-URL = "https://console.vst-one.com/Home"
-EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
-EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-RECIPIENT = "umer@technevity.net"
+# Setup basic logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-KNOWN_ERROR_KEYWORDS = [
-    "stacktrace",
-    "login check failed",
-    "504 gateway",
-    "white screen",
-    "service unavailable",
-    "application error",
-    "exception",
-    "something went wrong! please try again."
+# Configuration
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")  # Your alert sender email
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")  # Your email/app password
+
+TO_EMAILS = [
+    "umer@technevity.net",
 ]
 
-# === Logging ===
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+HEADERS = {
+    "User-Agent": "WebsiteMonitor/1.0 (+https://yourdomain.com)"
+}
 
-def send_email_alert(subject, message):
-    msg = MIMEText(message)
+ERROR_KEYWORDS = [
+    "exception",
+    "something went wrong! please try again.",
+]
+
+URLS_TO_MONITOR = [
+    "https://console.vst-one.com/Home/About",  # protected page needs login
+    "https://vstalert.com/Business/Index",      # public page
+]
+
+LOGIN_URL = "https://console.vst-one.com/Home"  # login page URL
+
+def send_email(subject, body):
+    msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
-    msg["To"] = RECIPIENT
-
+    msg["To"] = ", ".join(TO_EMAILS)
     try:
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg)
-            logging.info("📧 Email alert sent to umer@technevity.net")
+            server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
+        logging.info("📧 Email alert sent successfully.")
     except Exception as e:
-        logging.error("❌ Failed to send alert email: %s", e)
+        logging.error(f"❌ Error sending email: {e}")
 
-def is_blank_screenshot(path):
-    """Basic white screen detection based on screenshot brightness."""
-    try:
-        with Image.open(path) as img:
-            grayscale = img.convert("L")
-            pixels = list(grayscale.getdata())
-            avg_brightness = sum(pixels) / len(pixels)
-            logging.info(f"🧪 Screenshot brightness average: {avg_brightness}")
-            return avg_brightness > 245  # Very white
-    except Exception as e:
-        logging.error("❌ Failed to analyze screenshot: %s", e)
-        return False
+def check_protected_website(url):
+    USERNAME = os.getenv("VST_USERNAME")
+    PASSWORD = os.getenv("VST_PASSWORD")
 
-def check_website_blank():
-    logging.info("🌐 Launching browser...")
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--window-size=1920,1080")
+    if not USERNAME or not PASSWORD:
+        logging.error("❌ Missing VST_USERNAME or VST_PASSWORD environment variables.")
+        return
 
-    driver = webdriver.Chrome(options=chrome_options)
-    driver.set_page_load_timeout(30)
+    with requests.Session() as session:
+        try:
+            # Get login page to get cookies
+            session.get(LOGIN_URL, headers=HEADERS, timeout=15)
 
-    try:
-        logging.info(f"🔍 Navigating to {URL} ...")
-        driver.get(URL)
-        time.sleep(5)  # Allow JS to render
-        screenshot_path = "screenshot.png"
-        driver.save_screenshot(screenshot_path)
-        logging.info(f"📸 Screenshot saved: {screenshot_path}")
+            # Post login form - adjust form field names if needed
+            login_data = {
+                "Email": USERNAME,
+                "Password": PASSWORD,
+            }
 
-        # Check page source for known errors
-        page_source = driver.page_source.lower()
-        for keyword in KNOWN_ERROR_KEYWORDS:
-            if keyword in page_source:
-                logging.error(f"❌ Detected error keyword on page: {keyword}")
-                send_email_alert("🚨 VST Error Detected", f"Error found: {keyword}")
+            login_response = session.post(LOGIN_URL, data=login_data, headers=HEADERS, timeout=15)
+            if login_response.status_code != 200 or "invalid" in login_response.text.lower():
+                logging.error("❌ Login failed: invalid credentials or unexpected response")
+                send_email("Login Failed ❌", f"Login failed for {USERNAME} at {LOGIN_URL}")
                 return
 
-        # Check for blank/white screen
-        if is_blank_screenshot(screenshot_path):
-            logging.error("⚠️ Detected white/blank screen.")
-            send_email_alert("⚠️ VST Possibly Blank Page", "Screenshot looks blank (white screen).")
+            # Access protected page
+            response = session.get(url, headers=HEADERS, timeout=15)
+            if response.status_code != 200:
+                logging.error(f"❌ {url} returned status {response.status_code}")
+                send_email(f"Website DOWN ❌ ({response.status_code})", f"{url} returned status {response.status_code}")
+                return
 
+            content = response.text.lower()
+            for keyword in ERROR_KEYWORDS:
+                if keyword in content:
+                    logging.warning(f"⚠️ Keyword '{keyword}' found in {url}")
+                    send_email("Website Content Error Detected ❌",
+                               f"The keyword '{keyword}' was found in {url}. Please investigate.")
+                    return
+
+            logging.info(f"✅ {url} is UP and content looks clean.")
+
+        except requests.exceptions.RequestException as e:
+            logging.error(f"❌ Exception while checking {url}: {e}")
+            send_email("Website Check Failed ❌", f"Exception while accessing {url}:\n{e}")
+
+def check_website(url):
+    try:
+        response = requests.get(url, headers=HEADERS, timeout=15)
+        if response.status_code == 200:
+            logging.info(f"✅ {url} is UP with status 200.")
+        elif response.status_code == 403:
+            logging.warning(f"⚠️ {url} returned 403 Forbidden. Skipping alert.")
         else:
-            logging.info("✅ Page loaded and looks normal.")
+            logging.error(f"❌ {url} returned unexpected status {response.status_code}")
+            send_email(f"Website DOWN ❌ ({response.status_code})", f"{url} returned status {response.status_code}")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"❌ Exception while checking {url}: {e}")
+        send_email("Website Check Failed ❌", f"Exception while accessing {url}:\n{e}")
 
-    except Exception as e:
-        logging.error(f"❌ Exception occurred: {e}")
-        send_email_alert("🚨 VST Monitoring Failed", f"Unhandled exception:\n{e}")
-    finally:
-        driver.quit()
+def main():
+    for url in URLS_TO_MONITOR:
+        if url == "https://console.vst-one.com/Home/About":
+            check_protected_website(url)
+        else:
+            check_website(url)
 
 if __name__ == "__main__":
-    check_website_blank()
+    main()
