@@ -46,7 +46,7 @@ def check_website():
         logging.info(f"🔍 Navigating to {URL} ...")
         driver.get(URL)
 
-        wait = WebDriverWait(driver, 120)
+        wait = WebDriverWait(driver, 20)
 
         # Login
         logging.info("👤 Locating username input...")
@@ -61,7 +61,8 @@ def check_website():
 
         logging.info("➡️ Clicking login button...")
         login_button = wait.until(EC.element_to_be_clickable((By.ID, "btnLogin")))
-        login_button.click()
+        time.sleep(1)  # Allow UI to settle
+        driver.execute_script("arguments[0].click();", login_button)
 
         # Unit selection
         logging.info("⏳ Waiting for unit selection dropdown...")
@@ -87,3 +88,4 @@ def check_website():
 
 if __name__ == "__main__":
     check_website()
+
