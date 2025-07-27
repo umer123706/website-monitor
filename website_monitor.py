@@ -50,17 +50,17 @@ def check_website():
 
         # Login
         logging.info("👤 Locating username input...")
-        username_input = wait.until(EC.presence_of_element_located((By.ID, "Username")))
+        username_input = wait.until(EC.presence_of_element_located((By.NAME, "UserName")))
         username_input.clear()
         username_input.send_keys(USERNAME)
 
         logging.info("🔐 Locating password input...")
-        password_input = wait.until(EC.presence_of_element_located((By.ID, "Password")))
+        password_input = wait.until(EC.presence_of_element_located((By.NAME, "Password")))
         password_input.clear()
         password_input.send_keys(PASSWORD)
 
         logging.info("➡️ Clicking login button...")
-        login_button = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']")))
+        login_button = wait.until(EC.element_to_be_clickable((By.ID, "btnLogin")))
         login_button.click()
 
         # Unit selection
