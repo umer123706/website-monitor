@@ -40,9 +40,9 @@ def send_email(subject, body):
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
-        logging.info("📧 Email alert sent successfully.")
+        logging.info("Email alert sent successfully.")
     except Exception as e:
-        logging.error(f"❌ Error sending email: {e}")
+        logging.error(f" Error sending email: {e}")
 
 def check_website(url):
     try:
@@ -51,9 +51,9 @@ def check_website(url):
         duration = time.time() - start_time
 
         if duration > SLOW_RESPONSE_THRESHOLD:
-            logging.warning(f"⚠️ {url} took {duration:.2f} seconds to load. Sending alert.")
+            logging.warning(f" {url} took {duration:.2f} seconds to load. Sending alert.")
             send_email(
-                "Website Slow Response ⏱️",
+                "Website Slow Response ",
                 f"{url} took {duration:.2f} seconds to respond. Please check performance."
             )
 
@@ -64,22 +64,22 @@ def check_website(url):
                     if keyword in content:
                         logging.warning(f"⚠️ Keyword '{keyword}' found in {url}")
                         send_email(
-                            "Website Content Error Detected ❌",
+                            "Website Content Error Detected ",
                             f"The keyword '{keyword}' was found in {url}. Please investigate."
                         )
                         return
-            logging.info(f"✅ {url} is UP and content looks clean. Response time: {duration:.2f} sec")
+            logging.info(f" {url} is UP and content looks clean. Response time: {duration:.2f} sec")
         elif response.status_code == 403:
-            logging.warning(f"⚠️ {url} returned 403 Forbidden. Skipping alert.")
+            logging.warning(f" {url} returned 403 Forbidden. Skipping alert.")
         else:
-            logging.error(f"❌ {url} returned unexpected status {response.status_code}")
+            logging.error(f" {url} returned unexpected status {response.status_code}")
             send_email(
-                f"Website DOWN ❌ ({response.status_code})",
+                f"Website DOWN  ({response.status_code})",
                 f"{url} returned status {response.status_code}"
             )
     except requests.exceptions.RequestException as e:
-        logging.error(f"❌ Exception while checking {url}: {e}")
-        send_email("Website Check Failed ❌", f"Exception while accessing {url}:\n{e}")
+        logging.error(f" Exception while checking {url}: {e}")
+        send_email("Website Check Failed ", f"Exception while accessing {url}:\n{e}")
 
 def main():
     for url in URLS_TO_MONITOR:
