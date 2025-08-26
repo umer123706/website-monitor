@@ -1,9 +1,9 @@
-import requests
-import smtplib
-from email.mime.text import MIMEText
 import os
 import logging
 import time
+import smtplib
+import requests
+from email.mime.text import MIMEText
 
 # Logging setup
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -13,7 +13,12 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-TO_EMAILS = ["umer@technevity.net"]
+TO_EMAILS = [
+    "hafiz@technevity.net",
+    "umer@technevity.net",
+    "rajakashif@technevity.net",
+    "junaidsatti@technevity.net",
+]
 
 # Headers for HTTP requests
 HEADERS = {
@@ -36,6 +41,7 @@ URLS_TO_MONITOR = [
 # Threshold for slow responses (in seconds)
 SLOW_RESPONSE_THRESHOLD = 60
 
+
 # Function to send email alerts
 def send_email(subject, body):
     msg = MIMEText(body)
@@ -50,6 +56,7 @@ def send_email(subject, body):
         logging.info("Email alert sent successfully.")
     except Exception as e:
         logging.error(f"Error sending email: {e}")
+
 
 # Function to check a website's status and content
 def check_website(url):
@@ -96,10 +103,13 @@ def check_website(url):
         logging.error(f"Exception while checking {url}: {e}")
         send_email("Website Check Failed", f"Exception while accessing {url}:\n{e}")
 
+
 # Main loop
 def main():
     for url in URLS_TO_MONITOR:
         check_website(url)
 
+
 if __name__ == "__main__":
     main()
+
