@@ -35,7 +35,7 @@ ERROR_KEYWORDS = [
 URLS_TO_MONITOR = [
     "https://console.vst-one.com/Home/About",
     "https://vstalert.com/Business/Index",
-    "https://notifyconsole.vstalert.com/home",
+    "https://notifyconsole.vstalert.com/home/About",
 ]
 
 # Threshold for slow responses (in seconds)
@@ -112,4 +112,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
