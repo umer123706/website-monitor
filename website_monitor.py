@@ -18,6 +18,7 @@ TO_EMAILS = [
     "umer@technevity.net",
     "rajakashif@technevity.net",
     "junaidsatti@technevity.net",
+     "abid@technevity.net",
 ]
 
 # Headers for HTTP requests
@@ -112,6 +113,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
