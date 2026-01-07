@@ -24,13 +24,28 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests beautifulsoup4
+          pip install requests beautifulsoup4 selenium
 
-      # 4️⃣ Run website + L2 ticket monitor
+      # 4️⃣ Install Chrome & ChromeDriver for Selenium
+      - name: Install Chrome & ChromeDriver
+        run: |
+          sudo apt update
+          sudo apt install -y wget unzip xvfb libxi6 libgconf-2-4
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt -f install -y
+          CHROME_VERSION=$(google-chrome --version | grep -oP '\d+\.\d+\.\d+')
+          wget https://chromedriver.storage.googleapis.com/$CHROME_VERSION/chromedriver_linux64.zip
+          unzip chromedriver_linux64.zip
+          sudo mv chromedriver /usr/local/bin/
+          sudo chmod +x /usr/local/bin/chromedriver
+
+      # 5️⃣ Run website + L2 ticket monitor
       - name: Run website monitor
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          MONDAY_EMAIL: ${{ secrets.MONDAY_EMAIL }}
+          MONDAY_PASSWORD: ${{ secrets.MONDAY_PASSWORD }}
         run: |
           echo "Starting website monitor..."
           python website_monitor.py
