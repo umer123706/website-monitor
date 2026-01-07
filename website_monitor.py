@@ -1,118 +1,133 @@
 import os
 import logging
-import time
 import smtplib
 import requests
 from email.mime.text import MIMEText
+from bs4 import BeautifulSoup
+import time
 
-# Logging setup
+# --- Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
 
-# Email configuration
+# --- Email setup ---
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-TO_EMAILS = [
-    "hafiz@technevity.net",
+
+# Your old team emails
+TEAM_EMAILS = [
     "umer@technevity.net",
-    "rajakashif@technevity.net",
-    "junaidsatti@technevity.net",
-     "abid@technevity.net",
 ]
 
-# Headers for HTTP requests
-HEADERS = {
-    "User-Agent": "WebsiteMonitor/1.0 (+https://yourdomain.com)"
-}
+# Umer only for Monday.com ticket alerts
+UMER_EMAIL = "umerlatif919@gmail.com"
 
-# Keywords to look for in the response content (specific to the About page)
-ERROR_KEYWORDS = [
-    "exception",
-    "something went wrong! please try again.",
-]
-
-# URLs to monitor
+# --- Old URL monitoring ---
 URLS_TO_MONITOR = [
     "https://console.vst-one.com/Home/About",
     "https://vstalert.com/Business/Index",
     "https://notifyconsole.vstalert.com/home/",
 ]
 
-# Threshold for slow responses (in seconds)
+ERROR_KEYWORDS = [
+    "exception",
+    "something went wrong! please try again.",
+]
+
 SLOW_RESPONSE_THRESHOLD = 60
 
+# --- Monday.com board ---
+TICKETING_URL = "https://virtusense.monday.com/boards/9090126025/views/221733186"
+TICKET_COUNT_FILE = "ticket_count.txt"
 
-# Function to send email alerts
-def send_email(subject, body):
+# --- Email function ---
+def send_email(subject, body, recipients):
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
-    msg["To"] = ", ".join(TO_EMAILS)
+    msg["To"] = ", ".join(recipients) if isinstance(recipients, list) else recipients
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            server.send_message(msg, from_addr=EMAIL_ADDRESS, to_addrs=TO_EMAILS)
-        logging.info("Email alert sent successfully.")
+            server.send_message(msg)
+        logging.info(f"Email sent to {recipients}")
     except Exception as e:
         logging.error(f"Error sending email: {e}")
 
-
-# Function to check a website's status and content
+# --- Old website check ---
 def check_website(url):
     try:
         start_time = time.time()
-        response = requests.get(url, headers=HEADERS, timeout=SLOW_RESPONSE_THRESHOLD + 10)
+        response = requests.get(url, timeout=SLOW_RESPONSE_THRESHOLD + 10)
         duration = time.time() - start_time
 
-        # Check if the response time is too slow
         if duration > SLOW_RESPONSE_THRESHOLD:
-            logging.warning(f"{url} took {duration:.2f} seconds to load. Sending alert.")
             send_email(
                 "Website Slow Response",
-                f"{url} took {duration:.2f} seconds to respond. Please check performance."
+                f"{url} took {duration:.2f} seconds to respond. Please check performance.",
+                TEAM_EMAILS
             )
 
         if response.status_code == 200:
             content = response.text.lower()
-
-            # Only check for keywords on the About page
             if url == "https://console.vst-one.com/Home/About":
                 for keyword in ERROR_KEYWORDS:
                     if keyword in content:
-                        logging.warning(f"⚠️ Keyword '{keyword}' found in {url}")
                         send_email(
                             "Website Content Error Detected",
-                            f"The keyword '{keyword}' was found in {url}. Please investigate."
+                            f"Keyword '{keyword}' found in {url}.",
+                            TEAM_EMAILS
                         )
                         return
-
-            logging.info(f"{url} is UP and content looks clean. Response time: {duration:.2f} sec")
-
-        elif response.status_code == 403:
-            logging.warning(f"{url} returned 403 Forbidden. Skipping alert.")
-
-        else:
-            logging.error(f"{url} returned unexpected status {response.status_code}")
+        elif response.status_code != 403:
             send_email(
                 f"Website DOWN ({response.status_code})",
-                f"{url} returned status {response.status_code}"
+                f"{url} returned status {response.status_code}",
+                TEAM_EMAILS
             )
-
     except requests.exceptions.RequestException as e:
-        logging.error(f"Exception while checking {url}: {e}")
-        send_email("Website Check Failed", f"Exception while accessing {url}:\n{e}")
+        send_email("Website Check Failed", f"Exception accessing {url}:\n{e}", TEAM_EMAILS)
 
+# --- Monday.com ticket check ---
+def check_tickets():
+    if not os.path.exists(TICKET_COUNT_FILE):
+        with open(TICKET_COUNT_FILE, "w") as f:
+            f.write("0")
+    with open(TICKET_COUNT_FILE, "r") as f:
+        previous_count = int(f.read().strip())
 
-# Main loop
+    try:
+        response = requests.get(TICKETING_URL)
+        soup = BeautifulSoup(response.text, "html.parser")
+        # Replace 'ticket-id' with actual Monday.com ticket class
+        tickets = soup.find_all(class_="ticket-id")
+        current_count = len(tickets)
+        logging.info(f"Previous tickets: {previous_count}, Current tickets: {current_count}")
+
+        if current_count > previous_count:
+            new_tickets = current_count - previous_count
+            send_email(
+                "New Monday.com Ticket(s) Alert",
+                f"{new_tickets} new ticket(s) have been created:\n{TICKETING_URL}",
+                UMER_EMAIL
+            )
+            with open(TICKET_COUNT_FILE, "w") as f:
+                f.write(str(current_count))
+    except Exception as e:
+        logging.error(f"Error checking Monday.com tickets: {e}")
+
+# --- Main ---
 def main():
     for url in URLS_TO_MONITOR:
         check_website(url)
-
+    check_tickets()
 
 if __name__ == "__main__":
     main()
+
+
 
 
 
