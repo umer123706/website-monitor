@@ -15,7 +15,7 @@ SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-# Your old team emails
+# Website monitoring emails
 TEAM_EMAILS = [
     "umer@technevity.net",
 ]
@@ -40,6 +40,7 @@ SLOW_RESPONSE_THRESHOLD = 60
 # --- Monday.com board ---
 TICKETING_URL = "https://virtusense.monday.com/boards/9090126025/views/221733186"
 TICKET_COUNT_FILE = "ticket_count.txt"
+TOTAL_TICKETS_FILE = "total_tickets.txt"
 
 # --- Email function ---
 def send_email(subject, body, recipients):
@@ -92,11 +93,18 @@ def check_website(url):
 
 # --- Monday.com ticket check ---
 def check_tickets():
+    # Ensure files exist
     if not os.path.exists(TICKET_COUNT_FILE):
         with open(TICKET_COUNT_FILE, "w") as f:
             f.write("0")
+    if not os.path.exists(TOTAL_TICKETS_FILE):
+        with open(TOTAL_TICKETS_FILE, "w") as f:
+            f.write("0")
+
     with open(TICKET_COUNT_FILE, "r") as f:
         previous_count = int(f.read().strip())
+    with open(TOTAL_TICKETS_FILE, "r") as f:
+        total_tickets = int(f.read().strip())
 
     try:
         response = requests.get(TICKETING_URL)
@@ -104,17 +112,29 @@ def check_tickets():
         # Replace 'ticket-id' with actual Monday.com ticket class
         tickets = soup.find_all(class_="ticket-id")
         current_count = len(tickets)
-        logging.info(f"Previous tickets: {previous_count}, Current tickets: {current_count}")
+
+        logging.info(f"Previous: {previous_count}, Current: {current_count}, Total ever: {total_tickets}")
 
         if current_count > previous_count:
             new_tickets = current_count - previous_count
+            total_tickets += new_tickets
+
+            # Send email alert to Umer
             send_email(
                 "New Monday.com Ticket(s) Alert",
-                f"{new_tickets} new ticket(s) have been created:\n{TICKETING_URL}",
+                f"{new_tickets} new ticket(s) created!\n"
+                f"Current tickets: {current_count}\n"
+                f"Total tickets ever: {total_tickets}\n"
+                f"{TICKETING_URL}",
                 UMER_EMAIL
             )
+
+            # Update counts
             with open(TICKET_COUNT_FILE, "w") as f:
                 f.write(str(current_count))
+            with open(TOTAL_TICKETS_FILE, "w") as f:
+                f.write(str(total_tickets))
+
     except Exception as e:
         logging.error(f"Error checking Monday.com tickets: {e}")
 
