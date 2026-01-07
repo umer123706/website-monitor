@@ -57,13 +57,17 @@ def send_email(subject, body, recipients):
     except Exception as e:
         logging.error(f"Error sending email: {e}")
 
-# --- Old website check ---
+# --- Website check ---
 def check_website(url):
     try:
         start_time = time.time()
         response = requests.get(url, timeout=SLOW_RESPONSE_THRESHOLD + 10)
         duration = time.time() - start_time
 
+        # Log response time and status
+        logging.info(f"{url} response time: {duration:.2f} sec, status code: {response.status_code}")
+
+        # Slow response alert
         if duration > SLOW_RESPONSE_THRESHOLD:
             send_email(
                 "Website Slow Response",
@@ -71,6 +75,7 @@ def check_website(url):
                 TEAM_EMAILS
             )
 
+        # Check content only if status is 200
         if response.status_code == 200:
             content = response.text.lower()
             if url == "https://console.vst-one.com/Home/About":
@@ -82,16 +87,23 @@ def check_website(url):
                             TEAM_EMAILS
                         )
                         return
+        # Other status codes
         elif response.status_code != 403:
             send_email(
                 f"Website DOWN ({response.status_code})",
-                f"{url} returned status {response.status_code}",
+                f"{url} returned status {response.status_code}. Response time: {duration:.2f} sec",
                 TEAM_EMAILS
             )
-    except requests.exceptions.RequestException as e:
-        send_email("Website Check Failed", f"Exception accessing {url}:\n{e}", TEAM_EMAILS)
 
-# --- Monday.com ticket check ---
+    except requests.exceptions.RequestException as e:
+        logging.error(f"Exception accessing {url}: {e}")
+        send_email(
+            "Website Check Failed",
+            f"Exception accessing {url}:\n{e}",
+            TEAM_EMAILS
+        )
+
+# --- Monday.com ticket check (L2 Engineering only) ---
 def check_tickets():
     # Ensure files exist
     if not os.path.exists(TICKET_COUNT_FILE):
@@ -109,11 +121,12 @@ def check_tickets():
     try:
         response = requests.get(TICKETING_URL)
         soup = BeautifulSoup(response.text, "html.parser")
-        # Replace 'ticket-id' with actual Monday.com ticket class
-        tickets = soup.find_all(class_="ticket-id")
-        current_count = len(tickets)
+        # Grab all tickets and filter only L2 Engineering Tickets
+        all_tickets = soup.find_all(class_="ticket-id")  # Replace with actual class if different
+        l2_tickets = [t for t in all_tickets if "L2 Engineering Tickets" in t.text]
 
-        logging.info(f"Previous: {previous_count}, Current: {current_count}, Total ever: {total_tickets}")
+        current_count = len(l2_tickets)
+        logging.info(f"Previous: {previous_count}, Current L2: {current_count}, Total L2 ever: {total_tickets}")
 
         if current_count > previous_count:
             new_tickets = current_count - previous_count
@@ -121,10 +134,10 @@ def check_tickets():
 
             # Send email alert to Umer
             send_email(
-                "New Monday.com Ticket(s) Alert",
-                f"{new_tickets} new ticket(s) created!\n"
-                f"Current tickets: {current_count}\n"
-                f"Total tickets ever: {total_tickets}\n"
+                "New Monday.com L2 Engineering Ticket(s) Alert",
+                f"{new_tickets} new L2 Engineering ticket(s) created!\n"
+                f"Current L2 tickets: {current_count}\n"
+                f"Total L2 tickets ever: {total_tickets}\n"
                 f"{TICKETING_URL}",
                 UMER_EMAIL
             )
@@ -140,12 +153,15 @@ def check_tickets():
 
 # --- Main ---
 def main():
+    # Monitor websites
     for url in URLS_TO_MONITOR:
         check_website(url)
+    # Monitor L2 tickets
     check_tickets()
 
 if __name__ == "__main__":
     main()
+
 
 
 
