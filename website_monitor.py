@@ -3,8 +3,13 @@ import logging
 import smtplib
 import requests
 from email.mime.text import MIMEText
-from bs4 import BeautifulSoup
 import time
+import re
+
+# Selenium for Monday.com tickets
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
 
 # --- Logging ---
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s")
@@ -105,6 +110,9 @@ def check_website(url):
 
 # --- Monday.com ticket check (L2 Engineering only) ---
 def check_tickets():
+    MONDAY_EMAIL = os.getenv("MONDAY_EMAIL")
+    MONDAY_PASSWORD = os.getenv("MONDAY_PASSWORD")
+
     # Ensure files exist
     if not os.path.exists(TICKET_COUNT_FILE):
         with open(TICKET_COUNT_FILE, "w") as f:
@@ -118,21 +126,37 @@ def check_tickets():
     with open(TOTAL_TICKETS_FILE, "r") as f:
         total_tickets = int(f.read().strip())
 
-    try:
-        response = requests.get(TICKETING_URL)
-        soup = BeautifulSoup(response.text, "html.parser")
-        # Grab all tickets and filter only L2 Engineering Tickets
-        all_tickets = soup.find_all(class_="ticket-id")  # Replace with actual class if different
-        l2_tickets = [t for t in all_tickets if "L2 Engineering Tickets" in t.text]
+    # Selenium setup
+    options = Options()
+    options.headless = True
+    options.add_argument("--window-size=1920,1080")
+    driver = webdriver.Chrome(options=options)
 
-        current_count = len(l2_tickets)
+    try:
+        # Login
+        driver.get("https://virtusense.monday.com/auth/login_monday/email_password")
+        time.sleep(2)
+        driver.find_element(By.NAME, "email").send_keys(MONDAY_EMAIL)
+        driver.find_element(By.NAME, "password").send_keys(MONDAY_PASSWORD)
+        driver.find_element(By.XPATH, "//button[contains(text(),'Log in')]").click()
+        time.sleep(5)
+
+        # Go to board
+        driver.get(TICKETING_URL)
+        time.sleep(5)
+
+        # Get page text and search for L2 tickets
+        page_text = driver.find_element(By.TAG_NAME, "body").text
+        match = re.findall(r"L2[^\d]*(\d+)", page_text)
+        current_count = sum(int(m) for m in match) if match else 0
+
         logging.info(f"Previous: {previous_count}, Current L2: {current_count}, Total L2 ever: {total_tickets}")
 
         if current_count > previous_count:
             new_tickets = current_count - previous_count
             total_tickets += new_tickets
 
-            # Send email alert to Umer
+            # Send email alert to Umer using existing function
             send_email(
                 "New Monday.com L2 Engineering Ticket(s) Alert",
                 f"{new_tickets} new L2 Engineering ticket(s) created!\n"
@@ -142,14 +166,17 @@ def check_tickets():
                 UMER_EMAIL
             )
 
-            # Update counts
-            with open(TICKET_COUNT_FILE, "w") as f:
-                f.write(str(current_count))
-            with open(TOTAL_TICKETS_FILE, "w") as f:
-                f.write(str(total_tickets))
+        # Update counts
+        with open(TICKET_COUNT_FILE, "w") as f:
+            f.write(str(current_count))
+        with open(TOTAL_TICKETS_FILE, "w") as f:
+            f.write(str(total_tickets))
 
     except Exception as e:
         logging.error(f"Error checking Monday.com tickets: {e}")
+
+    finally:
+        driver.quit()
 
 # --- Main ---
 def main():
@@ -161,7 +188,6 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
 
 
