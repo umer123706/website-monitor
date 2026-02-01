@@ -1,12 +1,8 @@
 import os
 import logging
 import smtplib
-import requests
-from email.mime.text import MIMEText
 import time
-import re
-
-# Selenium for Monday.com tickets
+from email.mime.text import MIMEText
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -19,117 +15,38 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
+UMER_EMAIL = "umerlatif919@gmail.com"  # recipient
 
-# Website monitoring emails
-TEAM_EMAILS = [
-    "umer@technevity.net",
-]
-
-# Umer only for Monday.com ticket alerts
-UMER_EMAIL = "umerlatif919@gmail.com"
-
-# --- Old URL monitoring ---
-URLS_TO_MONITOR = [
-    "https://console.vst-one.com/Home/About",
-    "https://vstalert.com/Business/Index",
-    "https://notifyconsole.vstalert.com/home/",
-]
-
-ERROR_KEYWORDS = [
-    "exception",
-    "something went wrong! please try again.",
-]
-
-SLOW_RESPONSE_THRESHOLD = 60
-
-# --- Monday.com board ---
+# --- Monday.com board info ---
 TICKETING_URL = "https://virtusense.monday.com/boards/9090126025/views/221733186"
-TICKET_COUNT_FILE = "ticket_count.txt"
-TOTAL_TICKETS_FILE = "total_tickets.txt"
+STATE_FILE = "/tmp/l2_count.txt"  # safe location in CI
 
 # --- Email function ---
-def send_email(subject, body, recipients):
+def send_email(subject, body, recipient):
     msg = MIMEText(body)
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
-    msg["To"] = ", ".join(recipients) if isinstance(recipients, list) else recipients
+    msg["To"] = recipient
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
             server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             server.send_message(msg)
-        logging.info(f"Email sent to {recipients}")
+        logging.info(f"Email sent to {recipient}")
     except Exception as e:
-        logging.error(f"Error sending email: {e}")
+        logging.error(f"Failed to send email: {e}")
 
-# --- Website check ---
-def check_website(url):
-    try:
-        start_time = time.time()
-        response = requests.get(url, timeout=SLOW_RESPONSE_THRESHOLD + 10)
-        duration = time.time() - start_time
-
-        # Log response time and status
-        logging.info(f"{url} response time: {duration:.2f} sec, status code: {response.status_code}")
-
-        # Slow response alert
-        if duration > SLOW_RESPONSE_THRESHOLD:
-            send_email(
-                "Website Slow Response",
-                f"{url} took {duration:.2f} seconds to respond. Please check performance.",
-                TEAM_EMAILS
-            )
-
-        # Check content only if status is 200
-        if response.status_code == 200:
-            content = response.text.lower()
-            if url == "https://console.vst-one.com/Home/About":
-                for keyword in ERROR_KEYWORDS:
-                    if keyword in content:
-                        send_email(
-                            "Website Content Error Detected",
-                            f"Keyword '{keyword}' found in {url}.",
-                            TEAM_EMAILS
-                        )
-                        return
-        # Other status codes
-        elif response.status_code != 403:
-            send_email(
-                f"Website DOWN ({response.status_code})",
-                f"{url} returned status {response.status_code}. Response time: {duration:.2f} sec",
-                TEAM_EMAILS
-            )
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Exception accessing {url}: {e}")
-        send_email(
-            "Website Check Failed",
-            f"Exception accessing {url}:\n{e}",
-            TEAM_EMAILS
-        )
-
-# --- Monday.com ticket check (L2 Engineering only) ---
-def check_tickets():
+# --- Function to get L2 ticket count using Selenium ---
+def get_l2_ticket_count():
     MONDAY_EMAIL = os.getenv("MONDAY_EMAIL")
     MONDAY_PASSWORD = os.getenv("MONDAY_PASSWORD")
 
-    # Ensure files exist
-    if not os.path.exists(TICKET_COUNT_FILE):
-        with open(TICKET_COUNT_FILE, "w") as f:
-            f.write("0")
-    if not os.path.exists(TOTAL_TICKETS_FILE):
-        with open(TOTAL_TICKETS_FILE, "w") as f:
-            f.write("0")
-
-    with open(TICKET_COUNT_FILE, "r") as f:
-        previous_count = int(f.read().strip())
-    with open(TOTAL_TICKETS_FILE, "r") as f:
-        total_tickets = int(f.read().strip())
-
-    # Selenium setup
     options = Options()
-    options.headless = True
+    options.add_argument("--headless=new")
     options.add_argument("--window-size=1920,1080")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
     driver = webdriver.Chrome(options=options)
 
     try:
@@ -141,50 +58,51 @@ def check_tickets():
         driver.find_element(By.XPATH, "//button[contains(text(),'Log in')]").click()
         time.sleep(5)
 
-        # Go to board
+        # Navigate to board
         driver.get(TICKETING_URL)
         time.sleep(5)
 
-        # Get page text and search for L2 tickets
-        page_text = driver.find_element(By.TAG_NAME, "body").text
-        match = re.findall(r"L2[^\d]*(\d+)", page_text)
-        current_count = sum(int(m) for m in match) if match else 0
-
-        logging.info(f"Previous: {previous_count}, Current L2: {current_count}, Total L2 ever: {total_tickets}")
-
-        if current_count > previous_count:
-            new_tickets = current_count - previous_count
-            total_tickets += new_tickets
-
-            # Send email alert to Umer using existing function
-            send_email(
-                "New Monday.com L2 Engineering Ticket(s) Alert",
-                f"{new_tickets} new L2 Engineering ticket(s) created!\n"
-                f"Current L2 tickets: {current_count}\n"
-                f"Total L2 tickets ever: {total_tickets}\n"
-                f"{TICKETING_URL}",
-                UMER_EMAIL
-            )
-
-        # Update counts
-        with open(TICKET_COUNT_FILE, "w") as f:
-            f.write(str(current_count))
-        with open(TOTAL_TICKETS_FILE, "w") as f:
-            f.write(str(total_tickets))
+        # Count all tickets in L2 column
+        l2_items = driver.find_elements(By.XPATH, "//div[contains(@class,'status-label') and text()='L2']")
+        current_count = len(l2_items)
+        logging.info(f"Current L2 ticket count: {current_count}")
+        return current_count
 
     except Exception as e:
-        logging.error(f"Error checking Monday.com tickets: {e}")
+        logging.error(f"Error fetching L2 tickets: {e}")
+        return None
 
     finally:
         driver.quit()
 
-# --- Main ---
+# --- Main monitoring function ---
 def main():
-    # Monitor websites
-    for url in URLS_TO_MONITOR:
-        check_website(url)
-    # Monitor L2 tickets
-    check_tickets()
+    # Load previous count
+    previous_count = 0
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r") as f:
+                previous_count = int(f.read().strip())
+        except Exception:
+            previous_count = 0
+
+    current_count = get_l2_ticket_count()
+    if current_count is None:
+        logging.error("Could not retrieve current ticket count.")
+        return
+
+    # Check for increase
+    if current_count > previous_count:
+        new_tickets = current_count - previous_count
+        send_email(
+            "New L2 Monday.com Ticket(s) Alert",
+            f"{new_tickets} new ticket(s) moved to L2.\nCurrent L2 tickets: {current_count}",
+            UMER_EMAIL
+        )
+
+    # Save current count for next run
+    with open(STATE_FILE, "w") as f:
+        f.write(str(current_count))
 
 if __name__ == "__main__":
     main()
