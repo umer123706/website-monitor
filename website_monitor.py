@@ -1,40 +1,40 @@
 import os
+import time
 import logging
 import smtplib
 import requests
-import time
 from email.mime.text import MIMEText
 
-# --- Logging ---
+# ---------------- Logging ----------------
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s: %(message)s"
 )
 
-# --- Email setup ---
+# ---------------- Email Config ----------------
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
+
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 ALERT_RECIPIENTS = ["umer@technevity.net"]
 
-# --- Website monitoring ---
-URLS_TO_MONITOR = [
-    "https://console.vst-one.com/Home/About",
-    "https://vstalert.com/Business/Index",
-    "https://notifyconsole.vstalert.com/home/",
-]
+# ---------------- Health Endpoints ----------------
+HEALTH_URLS = {
+    "VST Console": "https://console.vst-one.com/health",
+    "VST Alert": "https://vstalert.com/health",
+    "Notify Console": "https://notifyconsole.vstalert.com/health",
+}
 
-ERROR_KEYWORDS = [
-    "exception",
-    "something went wrong",
-    "error occurred"
-]
+TIMEOUT = 10          # seconds
+SLOW_THRESHOLD = 3    # seconds
 
-SLOW_RESPONSE_THRESHOLD = 60  # seconds
+HEADERS = {
+    "User-Agent": "HealthMonitor/1.0"
+}
 
-# --- Email function ---
+# ---------------- Email Function ----------------
 def send_email(subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -48,58 +48,42 @@ def send_email(subject, body):
             server.send_message(msg)
         logging.info("Alert email sent")
     except Exception as e:
-        logging.error(f"Failed to send email: {e}")
+        logging.error(f"Email failed: {e}")
 
-# --- Website check ---
-def check_website(url):
+# ---------------- Health Check ----------------
+def check_health(name, url):
     try:
-        start_time = time.time()
-        response = requests.get(url, timeout=SLOW_RESPONSE_THRESHOLD + 10)
-        duration = time.time() - start_time
+        start = time.time()
+        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
+        duration = time.time() - start
 
-        logging.info(f"{url} | Status: {response.status_code} | Time: {duration:.2f}s")
+        logging.info(f"{name} | {response.status_code} | {duration:.2f}s")
 
-        # Slow response alert
-        if duration > SLOW_RESPONSE_THRESHOLD:
+        if response.status_code != 200:
             send_email(
-                "⚠️ Website Slow Response",
-                f"{url}\nResponse time: {duration:.2f} seconds"
-            )
-
-        # Status code alert
-        if response.status_code != 200 and response.status_code != 403:
-            send_email(
-                f"❌ Website DOWN ({response.status_code})",
-                f"{url}\nReturned status code: {response.status_code}\nTime: {duration:.2f}s"
+                f"🚨 {name} HEALTH CHECK FAILED",
+                f"Service: {name}\nURL: {url}\nStatus: {response.status_code}"
             )
             return
 
-        # Content keyword check
-        content = response.text.lower()
-        for keyword in ERROR_KEYWORDS:
-            if keyword in content:
-                send_email(
-                    "🚨 Website Error Detected",
-                    f"Keyword '{keyword}' found on:\n{url}"
-                )
-                break
+        if duration > SLOW_THRESHOLD:
+            send_email(
+                f"⚠️ {name} HEALTH CHECK SLOW",
+                f"Service: {name}\nURL: {url}\nResponse Time: {duration:.2f}s"
+            )
 
     except requests.exceptions.RequestException as e:
-        logging.error(f"Request failed for {url}: {e}")
         send_email(
-            "❌ Website Unreachable",
-            f"{url}\nError:\n{e}"
+            f"❌ {name} UNREACHABLE",
+            f"Service: {name}\nURL: {url}\nError: {e}"
         )
 
-# --- Main ---
+# ---------------- Main ----------------
 def main():
-    for url in URLS_TO_MONITOR:
-        check_website(url)
+    for name, url in HEALTH_URLS.items():
+        check_health(name, url)
 
 if __name__ == "__main__":
     main()
-
-
-
 
 
