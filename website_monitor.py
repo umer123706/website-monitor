@@ -1,40 +1,42 @@
 import os
-import time
 import logging
 import smtplib
 import requests
+import time
 from email.mime.text import MIMEText
 
-# ---------------- Logging ----------------
+# --- Logging ---
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s: %(message)s"
 )
 
-# ---------------- Email Config ----------------
+# --- Email setup ---
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 ALERT_RECIPIENTS = ["umer@technevity.net"]
 
-# ---------------- Health Endpoints ----------------
-HEALTH_URLS = {
-    "VST Console": "https://console.vst-one.com/health",
-    "VST Alert": "https://vstalert.com/health",
-    "Notify Console": "https://notifyconsole.vstalert.com/health",
-}
+# --- Website monitoring ---
+URLS_TO_MONITOR = [
+    "https://console.vst-one.com/Home/About",
+    "https://vstalert.com/Business/Index",
+    "https://notifyconsole.vstalert.com/home/",
+    "https://app.proactiveyou.com/#/login",    # added
+    "https://vstbalance.com/login"             # added
+]
 
-TIMEOUT = 10          # seconds
-SLOW_THRESHOLD = 3    # seconds
+ERROR_KEYWORDS = [
+    "exception",
+    "something went wrong",
+    "error occurred"
+]
 
-HEADERS = {
-    "User-Agent": "HealthMonitor/1.0"
-}
+SLOW_RESPONSE_THRESHOLD = 60  # seconds
 
-# ---------------- Email Function ----------------
+# --- Email function ---
 def send_email(subject, body):
     msg = MIMEText(body)
     msg["Subject"] = subject
@@ -48,42 +50,56 @@ def send_email(subject, body):
             server.send_message(msg)
         logging.info("Alert email sent")
     except Exception as e:
-        logging.error(f"Email failed: {e}")
+        logging.error(f"Failed to send email: {e}")
 
-# ---------------- Health Check ----------------
-def check_health(name, url):
+# --- Website check ---
+def check_website(url):
     try:
-        start = time.time()
-        response = requests.get(url, headers=HEADERS, timeout=TIMEOUT)
-        duration = time.time() - start
+        start_time = time.time()
+        response = requests.get(url, timeout=SLOW_RESPONSE_THRESHOLD + 10)
+        duration = time.time() - start_time
 
-        logging.info(f"{name} | {response.status_code} | {duration:.2f}s")
+        logging.info(f"{url} | Status: {response.status_code} | Time: {duration:.2f}s")
 
-        if response.status_code != 200:
+        # Slow response alert
+        if duration > SLOW_RESPONSE_THRESHOLD:
             send_email(
-                f"🚨 {name} HEALTH CHECK FAILED",
-                f"Service: {name}\nURL: {url}\nStatus: {response.status_code}"
+                "⚠️ Website Slow Response",
+                f"{url}\nResponse time: {duration:.2f} seconds"
+            )
+
+        # Status code alert
+        if response.status_code != 200 and response.status_code != 403:
+            send_email(
+                f"❌ Website DOWN ({response.status_code})",
+                f"{url}\nReturned status code: {response.status_code}\nTime: {duration:.2f}s"
             )
             return
 
-        if duration > SLOW_THRESHOLD:
-            send_email(
-                f"⚠️ {name} HEALTH CHECK SLOW",
-                f"Service: {name}\nURL: {url}\nResponse Time: {duration:.2f}s"
-            )
+        # Content keyword check
+        content = response.text.lower()
+        for keyword in ERROR_KEYWORDS:
+            if keyword in content:
+                send_email(
+                    "🚨 Website Error Detected",
+                    f"Keyword '{keyword}' found on:\n{url}"
+                )
+                break
 
     except requests.exceptions.RequestException as e:
+        logging.error(f"Request failed for {url}: {e}")
         send_email(
-            f"❌ {name} UNREACHABLE",
-            f"Service: {name}\nURL: {url}\nError: {e}"
+            "❌ Website Unreachable",
+            f"{url}\nError:\n{e}"
         )
 
-# ---------------- Main ----------------
+# --- Main ---
 def main():
-    for name, url in HEALTH_URLS.items():
-        check_health(name, url)
+    for url in URLS_TO_MONITOR:
+        check_website(url)
 
 if __name__ == "__main__":
     main()
+
 
 
