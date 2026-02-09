@@ -17,7 +17,10 @@ SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
-ALERT_RECIPIENTS = ["umer@technevity.net"]
+ALERT_RECIPIENTS = [
+    "umer@technevity.net",
+    "l2@technevity.net"
+]
 
 # --- Website monitoring ---
 URLS_TO_MONITOR = [
@@ -117,4 +120,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
