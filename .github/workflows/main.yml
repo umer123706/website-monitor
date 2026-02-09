@@ -27,7 +27,4 @@ jobs:
         env:
           EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-        run: |
-          echo "Starting website monitor..."
-          python website_monitor.py
-          echo "Monitor finished."
+        run: python website_monitor.py
