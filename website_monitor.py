@@ -24,8 +24,8 @@ URLS_TO_MONITOR = [
     "https://console.vst-one.com/Home/About",
     "https://vstalert.com/Business/Index",
     "https://notifyconsole.vstalert.com/home/",
-    "https://app.proactiveyou.com/#/login",    # added
-    "https://vstbalance.com/login"             # added
+    "https://app.proactiveyou.com/#/login",
+    "https://vstbalance.com/login"
 ]
 
 ERROR_KEYWORDS = [
@@ -35,6 +35,18 @@ ERROR_KEYWORDS = [
 ]
 
 SLOW_RESPONSE_THRESHOLD = 60  # seconds
+
+# ✅ Acceptable status codes (403 = protected but reachable)
+ALLOWED_STATUS_CODES = [200, 403]
+
+# ✅ Browser-like headers to reduce 403s
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+}
 
 # --- Email function ---
 def send_email(subject, body):
@@ -56,7 +68,11 @@ def send_email(subject, body):
 def check_website(url):
     try:
         start_time = time.time()
-        response = requests.get(url, timeout=SLOW_RESPONSE_THRESHOLD + 10)
+        response = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=SLOW_RESPONSE_THRESHOLD + 10
+        )
         duration = time.time() - start_time
 
         logging.info(f"{url} | Status: {response.status_code} | Time: {duration:.2f}s")
@@ -68,23 +84,24 @@ def check_website(url):
                 f"{url}\nResponse time: {duration:.2f} seconds"
             )
 
-        # Status code alert
-        if response.status_code != 200 and response.status_code != 403:
+        # Status code check (403 is OK)
+        if response.status_code not in ALLOWED_STATUS_CODES:
             send_email(
                 f"❌ Website DOWN ({response.status_code})",
                 f"{url}\nReturned status code: {response.status_code}\nTime: {duration:.2f}s"
             )
             return
 
-        # Content keyword check
-        content = response.text.lower()
-        for keyword in ERROR_KEYWORDS:
-            if keyword in content:
-                send_email(
-                    "🚨 Website Error Detected",
-                    f"Keyword '{keyword}' found on:\n{url}"
-                )
-                break
+        # Keyword check (only if page content is readable)
+        if response.status_code == 200:
+            content = response.text.lower()
+            for keyword in ERROR_KEYWORDS:
+                if keyword in content:
+                    send_email(
+                        "🚨 Website Error Detected",
+                        f"Keyword '{keyword}' found on:\n{url}"
+                    )
+                    break
 
     except requests.exceptions.RequestException as e:
         logging.error(f"Request failed for {url}: {e}")
@@ -100,6 +117,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
 
