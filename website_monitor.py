@@ -37,7 +37,7 @@ ERROR_KEYWORDS = [
     "error occurred"
 ]
 
-SLOW_RESPONSE_THRESHOLD = 60  # seconds
+SLOW_RESPONSE_THRESHOLD = 180  # seconds
 
 # ✅ Acceptable status codes (403 = protected but reachable)
 ALLOWED_STATUS_CODES = [200, 403]
@@ -120,5 +120,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
