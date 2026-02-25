@@ -3,6 +3,7 @@ import logging
 import smtplib
 import requests
 import time
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 # --- Logging ---
@@ -39,10 +40,8 @@ ERROR_KEYWORDS = [
 
 SLOW_RESPONSE_THRESHOLD = 180  # seconds
 
-# ✅ Acceptable status codes (403 = protected but reachable)
 ALLOWED_STATUS_CODES = [200, 403]
 
-# ✅ Browser-like headers to reduce 403s
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -53,10 +52,13 @@ HEADERS = {
 
 # --- Email function ---
 def send_email(subject, body):
-    msg = MIMEText(body)
+    msg = MIMEMultipart()
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = ", ".join(ALERT_RECIPIENTS)
+
+    # Add plain text body
+    msg.attach(MIMEText(body, "plain"))
 
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
@@ -83,34 +85,34 @@ def check_website(url):
         # Slow response alert
         if duration > SLOW_RESPONSE_THRESHOLD:
             send_email(
-                "⚠️ Website Slow Response",
-                f"{url}\nResponse time: {duration:.2f} seconds"
+                f"Website Alert: Slow Response",
+                f"Website: {url}\nResponse time: {duration:.2f} seconds"
             )
 
-        # Status code check (403 is OK)
+        # Status code check
         if response.status_code not in ALLOWED_STATUS_CODES:
             send_email(
-                f"❌ Website DOWN ({response.status_code})",
-                f"{url}\nReturned status code: {response.status_code}\nTime: {duration:.2f}s"
+                f"Website Alert: DOWN (Status {response.status_code})",
+                f"Website: {url}\nStatus code: {response.status_code}\nResponse time: {duration:.2f}s"
             )
             return
 
-        # Keyword check (only if page content is readable)
+        # Keyword check
         if response.status_code == 200:
             content = response.text.lower()
             for keyword in ERROR_KEYWORDS:
                 if keyword in content:
                     send_email(
-                        "🚨 Website Error Detected",
-                        f"Keyword '{keyword}' found on:\n{url}"
+                        f"Website Alert: Error Detected",
+                        f"Keyword '{keyword}' found on {url}"
                     )
                     break
 
     except requests.exceptions.RequestException as e:
         logging.error(f"Request failed for {url}: {e}")
         send_email(
-            "❌ Website Unreachable",
-            f"{url}\nError:\n{e}"
+            f"Website Alert: Unreachable",
+            f"Website: {url}\nError: {e}"
         )
 
 # --- Main ---
@@ -120,6 +122,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
