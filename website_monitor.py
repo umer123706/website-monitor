@@ -30,7 +30,6 @@ URLS_TO_MONITOR = [
     "https://notifyconsole.vstalert.com/home/",
     "https://app.proactiveyou.com/#/login",
     "https://vstbalance.com/login"
-    "https://newfm.vstbalance.com/login" 
 ]
 
 ERROR_KEYWORDS = [
