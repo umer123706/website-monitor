@@ -38,7 +38,7 @@ ERROR_KEYWORDS = [
     "error occurred"
 ]
 
-SLOW_RESPONSE_THRESHOLD = 180  # seconds
+SLOW_RESPONSE_THRESHOLD = 1000  # seconds
 
 ALLOWED_STATUS_CODES = [200, 403]
 
