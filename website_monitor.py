@@ -3,6 +3,8 @@ import logging
 import smtplib
 import requests
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -17,10 +19,8 @@ SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 EMAIL_ADDRESS = os.getenv("EMAIL_ADDRESS")
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
-
 ALERT_RECIPIENTS = [
     "umer@technevity.net",
-    
 ]
 
 # --- Website monitoring ---
@@ -38,8 +38,8 @@ ERROR_KEYWORDS = [
     "error occurred"
 ]
 
-SLOW_RESPONSE_THRESHOLD = 1000  # seconds
-
+SLOW_RESPONSE_THRESHOLD = 10  # seconds
+REQUEST_TIMEOUT = 30          # seconds
 ALLOWED_STATUS_CODES = [200, 403]
 
 HEADERS = {
@@ -50,16 +50,26 @@ HEADERS = {
     )
 }
 
+# --- Session with retry logic ---
+def create_session():
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        backoff_factor=2,
+        status_forcelist=[500, 502, 503, 504]
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("https://", adapter)
+    session.mount("http://", adapter)
+    return session
+
 # --- Email function ---
 def send_email(subject, body):
     msg = MIMEMultipart()
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = ", ".join(ALERT_RECIPIENTS)
-
-    # Add plain text body
     msg.attach(MIMEText(body, "plain"))
-
     try:
         with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
             server.starttls()
@@ -70,13 +80,14 @@ def send_email(subject, body):
         logging.error(f"Failed to send email: {e}")
 
 # --- Website check ---
-def check_website(url):
+def check_website(url, session):
     try:
         start_time = time.time()
-        response = requests.get(
+        response = session.get(
             url,
             headers=HEADERS,
-            timeout=SLOW_RESPONSE_THRESHOLD + 10
+            timeout=REQUEST_TIMEOUT,
+            allow_redirects=True
         )
         duration = time.time() - start_time
 
@@ -85,8 +96,8 @@ def check_website(url):
         # Slow response alert
         if duration > SLOW_RESPONSE_THRESHOLD:
             send_email(
-                f"Website Alert: Slow Response",
-                f"Website: {url}\nResponse time: {duration:.2f} seconds"
+                "Website Alert: Slow Response",
+                f"Website: {url}\nResponse time: {duration:.2f} seconds (threshold: {SLOW_RESPONSE_THRESHOLD}s)"
             )
 
         # Status code check
@@ -97,32 +108,33 @@ def check_website(url):
             )
             return
 
-        # Keyword check
+        # Keyword check (only on 200)
         if response.status_code == 200:
             content = response.text.lower()
             for keyword in ERROR_KEYWORDS:
                 if keyword in content:
                     send_email(
-                        f"Website Alert: Error Detected",
+                        "Website Alert: Error Detected",
                         f"Keyword '{keyword}' found on {url}"
                     )
                     break
 
+    #  No emails for any network/connection failures — just log them
+    except requests.exceptions.ConnectTimeout:
+        logging.error(f"Connection timed out for {url} — no alert sent")
+
+    except requests.exceptions.ConnectionError:
+        logging.error(f"Connection error for {url} — no alert sent")
+
     except requests.exceptions.RequestException as e:
-        logging.error(f"Request failed for {url}: {e}")
-        send_email(
-            f"Website Alert: Unreachable",
-            f"Website: {url}\nError: {e}"
-        )
+        logging.error(f"Request failed for {url}: {e} — no alert sent")
 
 # --- Main ---
 def main():
+    session = create_session()
     for url in URLS_TO_MONITOR:
-        check_website(url)
+        check_website(url, session)
 
 if __name__ == "__main__":
     main()
-
-
-
 
