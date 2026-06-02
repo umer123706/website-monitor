@@ -20,7 +20,7 @@ EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 ALERT_RECIPIENTS = [
     "umer@technevity.net",
-    "l2@technevity.net"
+    
 ]
 
 # --- Website monitoring ---
